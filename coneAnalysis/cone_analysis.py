@@ -22,18 +22,36 @@ test_df = pl.DataFrame(data)
 is_in_vision_cone(test_df[0], test_df[1])
 '''
 
-# This fn should be called and determines if
-# 1: A player can see another player
-# 2: A player is blocking another player
-# 0: Neither - they're blind?
-def looking_to_block_or_blocking(player1: pl.DataFrame, player2: pl.DataFrame) -> int:
-    if is_blocking(player1, player2):
-        return 2
+# should be called in df.apply(looking_to_block_or_blocking)
+def looking_to_block_or_blocking(row) -> int:
+    int blocking_status = 0
+    player1 = row.select(
+        'adjustedX',
+        'adjustedY',
+        'adjustedO'
+    )
+
+    player2 = row.select(
+        'adjustedX',
+        'adjustedY',
+        'adjustedO'
+    )
 
     if is_in_vision_cone(player1, player2):
-        return 1
+        blocking_status = 1
 
-    return 0
+    if is_blocking(player1, player2):
+        blocking_status = 2
+
+    return blocking_status
+
+def is_blocking(player1: pl.DataFrame, player2: pl.DataFrame) -> bool:
+    distance_between_players = calculate_distance(player1, player2)
+    if (is_in_angle(player1, player2)):
+        if distance_between_players <= BLOCKING_RADIUS:
+            return True
+
+    return False
 
 def is_in_vision_cone(player1: pl.DataFrame, player2: pl.DataFrame) -> bool:
     return (is_in_angle(player1, player2) and is_in_distance(player1, player2))
@@ -58,13 +76,6 @@ def is_in_distance(player1: pl.DataFrame, player2: pl.DataFrame) -> bool:
     if distance_between_players <= MAX_DISTANCE:
         return True
     
-    return False
-
-def is_blocking(player1: pl.DataFrame, player2: pl.DataFrame) -> bool:
-    distance_between_players = calculate_distance(player1, player2)
-    if distance_between_players <= BLOCKING_RADIUS:
-        return True
-
     return False
 
 
