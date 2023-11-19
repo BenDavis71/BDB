@@ -1,2 +1,2 @@
-polar==0.18.0
+polars==0.18.0
 pandas==2.1.2
