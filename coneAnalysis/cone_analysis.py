@@ -1,41 +1,12 @@
-import polars as pl
-import math as math
+CONE_ANGLE = 15 # degrees
+MAX_DISTANCE = 5 # feet
+BLOCKING_RADIUS = 1 # feet
 
-# find a better way to import?
-import sys
-import os
-sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
-
-from constants import *
-
-'''
-Used to determine if player1 can 'see' player2
-
-Example:
-data = {
-    'adjustedX': [50.00, 50.00],
-    'adjustedY': [45.00, 46.00],
-    'adjustedO': [90.00, 270.00]
-}
-
-test_df = pl.DataFrame(data)
-is_in_vision_cone(test_df[0], test_df[1])
-'''
-
-# should be called in df.apply(looking_to_block_or_blocking)
-def looking_to_block_or_blocking(row) -> int:
-    int blocking_status = 0
-    player1 = row.select(
-        'adjustedX',
-        'adjustedY',
-        'adjustedO'
-    )
-
-    player2 = row.select(
-        'adjustedX',
-        'adjustedY',
-        'adjustedO'
-    )
+# row = [o, dir, adjustedX, adjustedY, oDefender, dirDefender, adjustedXDefender, adjustedYDefender]
+def looking_to_block_or_blocking_df_fn(row) -> int:
+    blocking_status = 0
+    player1 = row[0:4]
+    player2 = row[4:]
 
     if is_in_vision_cone(player1, player2):
         blocking_status = 1
@@ -44,25 +15,26 @@ def looking_to_block_or_blocking(row) -> int:
         blocking_status = 2
 
     return blocking_status
+    
 
-def is_blocking(player1: pl.DataFrame, player2: pl.DataFrame) -> bool:
-    distance_between_players = calculate_distance(player1, player2)
-    if (is_in_angle(player1, player2)):
-        if distance_between_players <= BLOCKING_RADIUS:
-            return True
+def looking_to_block_or_blocking(player1: tuple, player2: tuple) -> int:
+    if is_blocking(player1, player2):
+        return 2
 
-    return False
+    if is_in_vision_cone(player1, player2):
+        return 1
 
-def is_in_vision_cone(player1: pl.DataFrame, player2: pl.DataFrame) -> bool:
+    return 0
+
+def is_in_vision_cone(player1: tuple, player2: tuple) -> bool:
     return (is_in_angle(player1, player2) and is_in_distance(player1, player2))
 
-def is_in_angle(player1: pl.DataFrame, player2: pl.DataFrame) -> bool:
+def is_in_angle(player1: tuple, player2: tuple) -> bool:
     half_cone_angle = CONE_ANGLE / 2
 
-    y_dist = player2.select(pl.col('adjustedY')).item() - player1.select(pl.col('adjustedY')).item()
-    x_dist = player2.select(pl.col('adjustedX')).item() - player1.select(pl.col('adjustedX')).item()
-
-    player1_orientation = player1.select(pl.col('adjustedO')).item()
+    y_dist = player2[3] - player1[3]
+    x_dist = player2[2] - player1[2]
+    player1_orientation = float(player1[0]) if type(player1[0]) == str else player1[0]
 
     angle = math.degrees(math.atan2(y_dist, x_dist))
 
@@ -71,16 +43,23 @@ def is_in_angle(player1: pl.DataFrame, player2: pl.DataFrame) -> bool:
     
     return False
 
-def is_in_distance(player1: pl.DataFrame, player2: pl.DataFrame) -> bool:
+def is_in_distance(player1: tuple, player2: tuple) -> bool:
     distance_between_players = calculate_distance(player1, player2)
     if distance_between_players <= MAX_DISTANCE:
         return True
     
     return False
 
+def is_blocking(player1: tuple, player2: tuple) -> bool:
+    distance_between_players = calculate_distance(player1, player2)
+    if distance_between_players <= BLOCKING_RADIUS:
+        return True
 
-def calculate_distance(player1: pl.DataFrame, player2: pl.DataFrame) -> float:
-    y_dist = abs(player1.select(pl.col('adjustedY')).item() - player2.select(pl.col('adjustedY')).item())
-    x_dist = abs(player1.select(pl.col('adjustedX')).item() - player2.select(pl.col('adjustedX')).item())
+    return False
+
+
+def calculate_distance(player1: tuple, player2: tuple) -> float:
+    y_dist = abs(player1[3] - player2[3])
+    x_dist = abs(player1[2] - player2[2])
 
     return math.sqrt(x_dist**2 + y_dist**2)
