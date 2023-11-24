@@ -69,31 +69,32 @@ def main():
 
     tracking = tracking.filter(pl.col('startingFrameId')!=-1)
 
+    players = tracking.join(players,on='nflId',how='left')
     players = players.join(games.select(['gameId','homeTeamAbbr','visitorTeamAbbr']),on='gameId')
-    # players = players.with_columns([
-    #     pl.when(pl.col('club')==pl.col('homeTeamAbbr'))
-    #     .then(pl.col('visitorTeamAbbr'))
-    #     .otherwise(pl.col('homeTeamAbbr'))
-    #     .alias('opponentClub')
-    # ])
+    players = players.with_columns([
+        pl.when(pl.col('club')==pl.col('homeTeamAbbr'))
+        .then(pl.col('visitorTeamAbbr'))
+        .otherwise(pl.col('homeTeamAbbr'))
+        .alias('opponentClub')
+    ])
 
-    # print(players[0])
+    print(players[0])
 
-    # players = players.select(
-    #     ['gameId','playId','nflId','displayName','jerseyNumber','frameId','club','opponentClub',
-    #         's','a','dis','o','dir','adjustedX','adjustedY','adjustedO','adjustedDir','framesSinceSnap','startingX','startingY',
-    #         'relativeX','relativeY','position']
-    # )
+    players = players.select(
+        ['gameId','playId','nflId','displayName','jerseyNumber','frameId','club','opponentClub',
+            's','a','dis','o','dir','adjustedX','adjustedY','adjustedO','adjustedDir','framesSinceSnap','startingX','startingY',
+            'relativeX','relativeY','position']
+    )
 
-    # print(players[0])
+    print(players[0])
 
-    # players = players.join(
-    #     players,
-    #     left_on=['gameId','playId','frameId','club'],
-    #     right_on=['gameId','playId','frameId','opponentClub'],
-    #     suffix='Defender'
-    # )
+    players = players.join(
+        players,
+        left_on=['gameId','playId','frameId','club'],
+        right_on=['gameId','playId','frameId','opponentClub'],
+        suffix='Defender'
+    )
 
-    # print(players[0])
+    print(players[0])
 
 main()
