@@ -68,6 +68,9 @@ def main():
     ])
 
     tracking = tracking.filter(pl.col('startingFrameId')!=-1)
+    tracking = tracking.filter(pl.col('club')!='football')
+
+    labeled = tracking.filter(pl.col('gameId')==2022091104)
 
     players = tracking.join(players,on='nflId',how='left')
     players = players.join(games.select(['gameId','homeTeamAbbr','visitorTeamAbbr']),on='gameId')
@@ -78,15 +81,14 @@ def main():
         .alias('opponentClub')
     ])
 
-    print(players[0])
+    print(players.schema)
 
-    players = players.select(
-        ['gameId','playId','nflId','displayName','jerseyNumber','frameId','club','opponentClub',
-            's','a','dis','o','dir','adjustedX','adjustedY','adjustedO','adjustedDir','framesSinceSnap','startingX','startingY',
-            'relativeX','relativeY','position']
-    )
-
-    print(players[0])
+    # TODO: fix
+    # players = players.select(
+    #     ['gameId','playId','nflId','displayName','jerseyNumber','frameId','club','opponentClub',
+    #         's','a','dis','o','dir','adjustedX','adjustedY','adjustedO','adjustedDir','framesSinceSnap','startingX','startingY',
+    #         'relativeX','relativeY','position']
+    # )
 
     players = players.join(
         players,
@@ -95,6 +97,10 @@ def main():
         suffix='Defender'
     )
 
-    print(players[0])
+    blocking_df = players.select(
+        'o', 'dir', 'adjustedX', 'adjustedY', 'oDefender', 'dirDefender', 'adjustedXDefender', 'adjustedYDefender'
+    ).apply(looking_to_block_or_blocking_df_fn)
+
+    players.with_column(pl.column(blocking_df))
 
 main()
