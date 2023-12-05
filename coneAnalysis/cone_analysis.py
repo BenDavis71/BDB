@@ -18,10 +18,10 @@ def looking_to_block_or_blocking_df_fn(row) -> int:
     
 
 def looking_to_block_or_blocking(player1: tuple, player2: tuple) -> int:
-    if is_blocking(player1, player2):
-        return 2
-
     if is_in_vision_cone(player1, player2):
+        if is_blocking(player1, player2):
+            return 2
+            
         return 1
 
     return 0
