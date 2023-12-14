@@ -54,7 +54,7 @@ def main():
 
     tracking=tracking.with_columns([
         pl.when(pl.col('playDirection')=='right').then(pl.col('dir').cast(pl.Float64)).otherwise(180-pl.col('dir').cast(pl.Float64)).alias('adjustedDir'),
-        pl.when(pl.col('playDirection')=='right').then(pl.col('o').cast(pl.Float64)).otherwise(180-pl.col('o').cast(pl.Float64)).alias('adjustedO'),
+        pl.when(pl.col('playDirection')=='right').then(pl.col('o').cast(pl.Float64)).otherwise((180+pl.col('o').cast(pl.Float64))%360).alias('adjustedO'),
     ])
 
     tracking=tracking.with_columns([
@@ -71,7 +71,7 @@ def main():
     tracking = tracking.filter(pl.col('club')!='football')
 
     # TODO: Remove this in favor of using the ENTIRE TABLE :o
-    labeled = tracking.filter(pl.col('gameId')==2022091104).filter(pl.col('frameId')==1)
+    # labeled = tracking.filter(pl.col('gameId')==2022091104).filter(pl.col('frameId')==1)
 
     players = labeled.join(players,on='nflId',how='left')
     players = players.join(games.select(['gameId','homeTeamAbbr','visitorTeamAbbr']),on='gameId')
@@ -97,10 +97,10 @@ def main():
         suffix='Defender'
     )
 
-    blocking_df = players.select(
-        'o', 'dir', 'adjustedX', 'adjustedY', 'oDefender', 'dirDefender', 'adjustedXDefender', 'adjustedYDefender'
+    blockingDf = players.select(
+        'adjustedO', 'adjustedDir', 'adjustedX', 'adjustedY', 'adjustedODefender', 'adjustedDirDefender', 'adjustedXDefender', 'adjustedYDefender'
     ).apply(looking_to_block_or_blocking_df_fn)
 
-    players.with_columns(pl.col('blockingStatus') = (blocking_df.to_series()))
+    players.with_columns(pl.col('blockingStatus') = (blockingDf.to_series()))
 
 main()
