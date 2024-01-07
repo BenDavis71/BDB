@@ -27,11 +27,11 @@ rc('animation', html='html5')
 @st.cache_data(persist=True, show_spinner=False)
 def get_data():
     # read all data
-    players = pl.scan_parquet('Data\\players.parquet')
-    plays = pl.scan_parquet('Data\\plays.parquet')
-    games = pl.scan_parquet('Data\\games.parquet')
-    tracking = pl.scan_parquet('Data\\tracking_week_*.parquet')
-    play_results = pl.scan_parquet('Data\\results.parquet')
+    players = pl.scan_parquet('Data/players.parquet')
+    plays = pl.scan_parquet('Data/plays.parquet')
+    games = pl.scan_parquet('Data/games.parquet')
+    tracking = pl.scan_parquet('Data/tracking_week_*.parquet')
+    play_results = pl.scan_parquet('Data/results.parquet')
 
     return players, plays, games, tracking, play_results
 
@@ -103,13 +103,12 @@ def filter_df(df, masks):
     print("filter_df()")
     for mask in masks:
         df=df.filter(mask)
-    df = df.unique(subset='UniqueID') #TODO move this elsewhere?
+    df = df.unique(subset='uniquePlayId') #TODO move this elsewhere?
     return df
 
  # *args is just there to force a cache update when there's a change in the filters
-@st.cache_data
+# @st.cache_data
 def collect_df(_df, selected_columns, *args):
-    print("collect_df")
     return  _df.select(selected_columns).collect().to_pandas()
 
 def add_filter_name_to_df(df, name):
@@ -267,7 +266,7 @@ if __name__ == "__main__":
     st.session_state.filters = (
         MyFilter(
             human_name='Offense',
-            df_column='possessionTeam',
+            df_column='offense',
             suffix=' O',
             widget_type=st.multiselect,
             widget_options={'options':get_options(plays,'possessionTeam')},
@@ -550,6 +549,7 @@ if __name__ == "__main__":
 
             for i in range(1, MyFilter.group_count+1): #todo have a function for this?
                 print('Getting filter values')
+
                 name = coalesce(filter_selections[i]['name'], 'NFL')
                 color = filter_selections[i]['color']
                 values = filter_selections[i]['values']
@@ -564,6 +564,8 @@ if __name__ == "__main__":
                 df = add_filter_name_to_df(play_results, name)
                 #TODO allow ability to select defensive team's colors
                 color = hex_color_from_color_selection(color, team)
+
+                #problem
                 df = filter_df(df, masks.values())
 
                 # start ridgeline function here?
@@ -571,16 +573,15 @@ if __name__ == "__main__":
                 
                 print("joining play_results to plays to get EPA")
                 df = df.join(plays, on='gameId', how='left')
-                print("finished joining play_results to plays to get EPA")    
+                print("finished joining play_results to plays to get EPA")  
 
+                # df.schema
                 df = df.with_columns([pl.col(metric).alias('Metric')])
-                st.write(df.collect().schema)
-                selected_columns=['FilterName', 'Metric']
+                selected_columns=['FilterName', 'Metric'] 
                 # df = collect_df(df, selected_columns, values)
-                df = df.select(selected_columns).collect().to_pandas()
-                show(df)
-                print(df)
-                dfs.append(df)
+                # df = df.select(selected_columns).collect().to_pandas()
+                
+                dfs.append(df.select(selected_columns).collect().to_pandas())
                 names.append(name)
                 colors.append(color)
 
@@ -593,22 +594,14 @@ if __name__ == "__main__":
                     pl.mean('playResult').round(1).alias('Yards/Play'),
                     pl.mean('expectedPointsAdded').round(2).alias('EPA/Play'),
                     pl.mean('SuccessfulPlay').round(2).alias('Success Rate'),
-                    pl.mean('ExplosivePlay').round(2).alias('Explosive Rate'),
-                    pl.struct(pl.col('gameId'),pl.col('possesionTeam')).n_unique().alias('Games'),
-                    (pl.sum('playResult') / pl.struct(pl.col('GameID'),pl.col('OffensiveTeam')).n_unique()).round(0).alias('Yards/Game'),
-                    # (pl.sum('OffensiveTD') / pl.struct(pl.col('GameID'),pl.col('OffensiveTeam')).n_unique()).round(1).alias('TDs/Game'),
-                    # (pl.sum('InterceptionOnPlay') / pl.struct(pl.col('GameID'),pl.col('OffensiveTeam')).n_unique()).round(1).alias('INTs/Game'),#TODO remove defensive touchdowns,
-                    # pl.sum('OffensiveTD').alias('TDs'), 
-                    # pl.sum('InterceptionOnPlay').alias('INTs'),
-                    # pl.sum('Touchdown')
+                    pl.mean('ExplosivePlay').round(2).alias('Explosive Rate')
                 ])
                 
                 print("Selecting Columns: ", selected_columns)
                 #TODO mess around with dataframe formatting available https://docs.streamlit.io/library/api-reference/data/st.dataframe
-                selected_columns=['Name','Plays','Yards/Play','EPA/Play','Success Rate','Explosive Rate','Games','Yards/Game'] #,'TDs/Game','INTs/Game','TDs','INTs']
+                selected_columns=['Name','Plays','Yards/Play','EPA/Play','Success Rate','Explosive Rate']
                 stats_dfs.append(collect_df(stats_df, selected_columns, values, names))
-
-
+                
             #TODO leave message if dfs = 0?
             print("Attempting to draw ridge plot")
             draw_ridgeplot(dfs, names, colors, MyFilter.group_count)
