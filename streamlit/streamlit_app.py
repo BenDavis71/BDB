@@ -288,25 +288,11 @@ if __name__ == "__main__":
         # ),
         MyFilter(
             human_name='Defense',
-            df_column='defensiveTeam',
+            df_column='defense',
             suffix=' D',
             widget_type=st.multiselect,
             widget_options={'options':get_options(plays,'defensiveTeam')},
         ),
-        # MyFilter(
-        #     human_name='Defensive Division',
-        #     df_column='DefensiveDivision',
-        #     suffix=' D',
-        #     widget_type=st.multiselect,
-        #     widget_options={'options':get_options(df_team_info,'team_division')},
-        # ),
-        # MyFilter(
-        #     human_name='Defensive Conference',
-        #     df_column='DefensiveConference',
-        #     suffix=' D',
-        #     widget_type=st.multiselect,
-        #     widget_options={'options':get_options(df_team_info,'team_conf')},
-        # ),
         MyFilter(
             human_name='Week',
             df_column='Week',
@@ -513,227 +499,230 @@ if __name__ == "__main__":
     print("SuccessPlay/ExplosivePlay done")
     
     # st.write(plays.collect().to_pandas())
-    try:
-        print("Trying to draw sidebar")
-        filter_selections = draw_sidebar()
-        print("Finished drawing sidebar")
-        # st.write(df.collect().filter(True).to_pandas())
-        # st.write(*filter_selections.items())
-        # st.write(filter_selections[1]['masks']['Personnel'])
-        # st.write(df.collect().filter(filter_selections[1]['masks']['Personnel']))
-        #names = list(pluck('name', filter_selections.values()))
-        #values = list(pluck('values', filter_selections.values()))
-        # st.cache_data.clear()
-        # master_df = df.join(plays, on='UniqueID', how='inner')
-        # for side in ['Offensive','Defensive']:
-        #     _ = df_team_info.select(['team_nick','team_conf','team_division']).rename({
-        #         'team_nick':f'{side}Team', 'team_conf':f'{side}Conference', 'team_division':f'{side}Division'
-        #         })
-        #     master_df = master_df.join(_, on=f'{side}Team', how='inner')
-        # st.write(master_df.collect().to_pandas().columns)
-        # st.write(master_df.select('Route').unique().collect().to_pandas())
-        dfs=[]
-        stats_dfs=[] #TODO make this more elegant
-        names=[]
-        colors=[]
-        logos=[]
-        
-        #TODO this is main; reorganize all this crap
-        st.title('Pulling the Plug')
-        options = ['Ridgeline', 'Heatmap', 'Sankey','Cut-Ups', 'About']
-        selected_page = option_menu(None, options, orientation='horizontal', styles={'icon': {'font-size': '0px'}})
-        if selected_page == 'Ridgeline':
-            print("Selected Page: ", selected_page)
+    # try:
+    print("Trying to draw sidebar")
+    filter_selections = draw_sidebar()
+    print("Finished drawing sidebar")
+    # st.write(df.collect().filter(True).to_pandas())
+    # st.write(*filter_selections.items())
+    # st.write(filter_selections[1]['masks']['Personnel'])
+    # st.write(df.collect().filter(filter_selections[1]['masks']['Personnel']))
+    #names = list(pluck('name', filter_selections.values()))
+    #values = list(pluck('values', filter_selections.values()))
+    # st.cache_data.clear()
+    # master_df = df.join(plays, on='UniqueID', how='inner')
+    # for side in ['Offensive','Defensive']:
+    #     _ = df_team_info.select(['team_nick','team_conf','team_division']).rename({
+    #         'team_nick':f'{side}Team', 'team_conf':f'{side}Conference', 'team_division':f'{side}Division'
+    #         })
+    #     master_df = master_df.join(_, on=f'{side}Team', how='inner')
+    # st.write(master_df.collect().to_pandas().columns)
+    # st.write(master_df.select('Route').unique().collect().to_pandas())
+    dfs=[]
+    stats_dfs=[] #TODO make this more elegant
+    names=[]
+    colors=[]
+    logos=[]
 
-            st.header('EPA Ridgeline Plot and Stats')
-            st.header('')
+    #TODO this is main; reorganize all this crap
+    st.title('Pulling the Plug')
+    options = ['Ridgeline', 'Heatmap', 'Sankey','Cut-Ups', 'About']
+    selected_page = option_menu(None, options, orientation='horizontal', styles={'icon': {'font-size': '0px'}})
+    if selected_page == 'Ridgeline':
+        print("Selected Page: ", selected_page)
 
-            for i in range(1, MyFilter.group_count+1): #todo have a function for this?
-                print('Getting filter values')
+        st.header('EPA Ridgeline Plot and Stats')
+        st.header('')
+    
+        for i in range(1, MyFilter.group_count+1): #todo have a function for this?
+            print('Getting filter values')
 
-                name = coalesce(filter_selections[i]['name'], 'NFL')
-                color = filter_selections[i]['color']
-                values = filter_selections[i]['values']
-                masks = filter_selections[i]['masks']
-                shared_offense=filter_selections.get(0,{}).get('values',{}).get('Offense','')
-                shared_defense=filter_selections.get(0,{}).get('values',{}).get('Defense','')
-                offense = values.get('Offense', '')
-                defense = values.get('Defense', '')
-                team = coalesce(shared_offense,shared_defense,offense,defense,'NA')
-                print("Finished getting filter values")
+            name = coalesce(filter_selections[i]['name'], 'NFL')
+            color = filter_selections[i]['color']
+            values = filter_selections[i]['values']
+            masks = filter_selections[i]['masks']
+            shared_offense=filter_selections.get(0,{}).get('values',{}).get('Offense','')
+            shared_defense=filter_selections.get(0,{}).get('values',{}).get('Defense','')
+            offense = values.get('Offense', '')
+            defense = values.get('Defense', '')
+            team = coalesce(shared_offense,shared_defense,offense,defense,'NA')
+            print("Finished getting filter values")
 
-                df = add_filter_name_to_df(play_results, name)
-                #TODO allow ability to select defensive team's colors
-                color = hex_color_from_color_selection(color, team)
-
-                #problem
-                df = filter_df(df, masks.values())
-
-                # start ridgeline function here?
-                metric = 'expectedPointsAdded' #TODO bring out of loop? and is the below stupid?
-                
-                print("joining play_results to plays to get EPA")
-                df = df.join(plays, on='gameId', how='left')
-                print("finished joining play_results to plays to get EPA")  
-
-                # df.schema
-                df = df.with_columns([pl.col(metric).alias('Metric')])
-                selected_columns=['FilterName', 'Metric'] 
-                # df = collect_df(df, selected_columns, values)
-                # df = df.select(selected_columns).collect().to_pandas()
-                
-
-                #TODO exclude don't work
-                #TODO defense don't work
-                dfs.append(df.select(selected_columns).collect().to_pandas())
-                names.append(name)
-                colors.append(color)
-
-                print("Creating Stats")
-                #TODO let them select which
-                stats_df=df.select([
-                    pl.lit(name).alias('Name'),
-                    pl.count('playResult').alias('Plays'),
-                    # pl.sum('OffensiveYardage').alias('Yards'),
-                    pl.mean('playResult').round(1).alias('Yards/Play'),
-                    pl.mean('expectedPointsAdded').round(2).alias('EPA/Play'),
-                    pl.mean('SuccessfulPlay').round(2).alias('Success Rate'),
-                    pl.mean('ExplosivePlay').round(2).alias('Explosive Rate')
-                ])
-                
-                print("Selecting Columns: ", selected_columns)
-                #TODO mess around with dataframe formatting available https://docs.streamlit.io/library/api-reference/data/st.dataframe
-                selected_columns=['Name','Plays','Yards/Play','EPA/Play','Success Rate','Explosive Rate']
-                stats_dfs.append(collect_df(stats_df, selected_columns, values, names))
-                
-            #TODO leave message if dfs = 0?
-            print("Attempting to draw ridge plot")
-            draw_ridgeplot(dfs, names, colors, MyFilter.group_count)
-            st.dataframe(pd.concat(stats_dfs),use_container_width=True)
+            df = add_filter_name_to_df(play_results, name)
+            #TODO allow ability to select defensive team's colors
+            color = hex_color_from_color_selection(color, team)
 
 
-        elif selected_page == 'Sankey':
-            print("Selected Page: ", selected_page)
+            df = filter_df(df, masks.values())
 
-            st.header('Actual Personnel vs What Teams Lined Up Like')
-            st.header('')
 
-            minimum_snap_threshold = st.select_slider('Minimum Snap Percentage', options=range(0,16), format_func=lambda x: f'{x}%',  value=5) / 100
-            combine_groups = st.checkbox('Combine other personnel packages into single group?')
-
-            for i in range(1, MyFilter.group_count+1): #todo have a function for this?
-                name = coalesce(filter_selections[i]['name'], 'NFL')
-                color = filter_selections[i]['color']
-                values = filter_selections[i]['values']
-                masks = filter_selections[i]['masks']
-                shared_offense=filter_selections.get(0,{}).get('values',{}).get('Offense','')
-                shared_defense=filter_selections.get(0,{}).get('values',{}).get('Defense','')
-                offense = values.get('Offense', '')
-                defense = values.get('Defense', '')
-                team = coalesce(shared_offense,shared_defense,offense,defense)
-
-                df = add_filter_name_to_df(master_df, name)
-                #TODO allow ability to select defensive team's colors
-                color = hex_color_from_color_selection(color, team, df_team_info)
-                logo = get_logos(team, df_team_info)
-
-                df = filter_df(df, masks.values())
-                
-                # selected_columns=['FilterName', 'Metric']
-                # dfs.append(collect_df(df, selected_columns, values))
-                names.append(name) #TODO get rid of appends if I'm not using them; although probably better to stick them into function
-                colors.append(color)
-                logos.append(logo)
-
-                draw_personnel_sankey(df, name, color, logo, minimum_snap_threshold, combine_groups)
-                #st.write('_____________')
-
-        elif selected_page == 'Heatmap':
-            print("Selected Page: ", selected_page)
-            st.header('Personnel Heatmap')
-            st.header('')
+            # start ridgeline function here?
+            metric = 'expectedPointsAdded' #TODO bring out of loop? and is the below stupid?
             
-            comparison_mode = st.selectbox('Mode', ['Personnel Usage of Individual Groups', 'Compare Personnel Usage Between Groups']) #TODO better names
-            for i in range(1, MyFilter.group_count+1): #todo have a function for this?
-                name = coalesce(filter_selections[i]['name'], 'NFL')
-                color = filter_selections[i]['color']
-                values = filter_selections[i]['values']
-                masks = filter_selections[i]['masks']
-                shared_offense=filter_selections.get(0,{}).get('values',{}).get('Offense','')
-                shared_defense=filter_selections.get(0,{}).get('values',{}).get('Defense','')
-                offense = values.get('Offense', '')
-                defense = values.get('Defense', '')
-                team = coalesce(shared_offense,shared_defense,offense,defense)
+            print("joining play_results to plays to get EPA")
+            df = df.join(plays, on=['gameId','playId'], how='left')
+            print("finished joining play_results to plays to get EPA")  
 
-                df = add_filter_name_to_df(master_df, name)
-                #TODO allow ability to select defensive team's colors
-                color = hex_color_from_color_selection(color, team, df_team_info)
-                logo = get_logos(team, df_team_info)
+            # df.schema
+            df = df.with_columns([pl.col(metric).alias('Metric')])
+            selected_columns=['FilterName', 'Metric'] 
+            # df = collect_df(df, selected_columns, values)
+            # df = df.select(selected_columns).collect().to_pandas()
+            
 
-                df = filter_df(df, masks.values())
-                
-                dfs.append(df)
-                names.append(name)
-                colors.append(color)
-                logos.append(logo)
-            if len(dfs) < 2 and comparison_mode=='Compare Personnel Usage Between Groups':
-                st.header('You must select multiple groups with the filter on the left to use this mode')
-            else:
-                draw_heatmap(dfs, names, colors, logos, comparison_mode)
+            #TODO exclude don't work
+            #TODO defense don't work
+            dfs.append(df.select(selected_columns).collect().to_pandas())
+            names.append(name)
+            colors.append(color)
 
-        elif selected_page == 'Cut-Ups':
-            print("Selected Page: ", selected_page)
-            st.header('YouTube links to plays from each filter group')
-            st.markdown('_(adblocker recommended_)')
-            count_of_highlights = st.number_input('Select maximum number of videos to link:',value=5)
-            touchdowns_only = st.checkbox('Touchdowns only?',value=True)
-            st.markdown('_Recommended so that the play will show up on YouTube highlights_')
-            for i in range(1, MyFilter.group_count+1): #todo have a function for this?
-                name = coalesce(filter_selections[i]['name'], 'NFL')
-                values = filter_selections[i]['values']
-                masks = filter_selections[i]['masks']
+            print("Creating Stats")
+            #TODO let them select which
+            stats_df=df.select([
+                pl.lit(name).alias('Name'),
+                pl.count('playResult').alias('Plays'),
+                # pl.sum('OffensiveYardage').alias('Yards'),
+                pl.mean('playResult').round(1).alias('Yards/Play'),
+                pl.mean('expectedPointsAdded').round(2).alias('EPA/Play'),
+                pl.mean('SuccessfulPlay').round(2).alias('Success Rate'),
+                pl.mean('ExplosivePlay').round(2).alias('Explosive Rate')
+            ])
+            
+            print("Selecting Columns: ", selected_columns)
+            #TODO mess around with dataframe formatting available https://docs.streamlit.io/library/api-reference/data/st.dataframe
+            selected_columns=['Name','Plays','Yards/Play','EPA/Play','Success Rate','Explosive Rate']
+            stats_dfs.append(collect_df(stats_df, selected_columns, values, names))
+            
+        #TODO leave message if dfs = 0?
+        print("Attempting to draw ridge plot")
+        draw_ridgeplot(dfs, names, colors, MyFilter.group_count)
+        stats_dfs = pd.concat(stats_dfs).set_index('Name')
+        st.dataframe(stats_dfs,use_container_width=True)
 
-                df = add_filter_name_to_df(master_df, name)
 
-                df = filter_df(df, masks.values())
-                
-                # df = df.with_columns([pl.col(metric).alias('Metric')])
-                # selected_columns=['FilterName', 'Metric']
-                dfs.append(collect_df(df, ['Week','OffensiveTeam','DefensiveTeam','Quarter','TimeLeft', 'Touchdown'], values))
-                names.append(name)
-                df=dfs[i-1]
-                if touchdowns_only:
-                    df = df[df['Touchdown']==1].reset_index(drop=True)
-                df = df.sort_values(by=['Week','OffensiveTeam','Quarter','TimeLeft']).reset_index(drop=True)
-                links = set()
-                st.header('')
-                st.header(name)
-                i=0
-                while len(links) <= count_of_highlights-1:
-                    try:
-                        w = df['Week'][i]
-                        o = df['OffensiveTeam'][i]
-                        d = df['DefensiveTeam'][i]
-                        q = df['Quarter'][i].item()
-                        q = quarter_dict[q]
-                        raw_time = df['TimeLeft'][i].item()
-                        m = raw_time//60
-                        s = f'{raw_time%60:02}'
-                        md = f'{i+1}: [{o} vs {d} Week {w}, {m}:{s} left in {q}]'
-                        link = f'(https://www.google.com/search?btnI=1&q=2020+week+{w}+{o}+{d}%20site:youtube.com)'.replace(' ', '_')
-                        
-                        if md not in links:
-                            links.add(md)
-                            st.markdown(md+link)
-                        i+=1
-                
-                    except:
-                        break
+    elif selected_page == 'Sankey':
+        print("Selected Page: ", selected_page)
 
-        elif selected_page == 'About':
-            print("Selected Page: ", selected_page)
-            st.markdown('')
-            st.markdown('')
-            st.markdown('_Coming soon_')
-    except:
-        pass
+        st.header('Actual Personnel vs What Teams Lined Up Like')
+        st.header('')
+
+        minimum_snap_threshold = st.select_slider('Minimum Snap Percentage', options=range(0,16), format_func=lambda x: f'{x}%',  value=5) / 100
+        combine_groups = st.checkbox('Combine other personnel packages into single group?')
+
+        for i in range(1, MyFilter.group_count+1): #todo have a function for this?
+            name = coalesce(filter_selections[i]['name'], 'NFL')
+            color = filter_selections[i]['color']
+            values = filter_selections[i]['values']
+            masks = filter_selections[i]['masks']
+            shared_offense=filter_selections.get(0,{}).get('values',{}).get('Offense','')
+            shared_defense=filter_selections.get(0,{}).get('values',{}).get('Defense','')
+            offense = values.get('Offense', '')
+            defense = values.get('Defense', '')
+            team = coalesce(shared_offense,shared_defense,offense,defense)
+
+            df = add_filter_name_to_df(master_df, name)
+            #TODO allow ability to select defensive team's colors
+            color = hex_color_from_color_selection(color, team, df_team_info)
+            logo = get_logos(team, df_team_info)
+
+            df = filter_df(df, masks.values())
+            
+            # selected_columns=['FilterName', 'Metric']
+            # dfs.append(collect_df(df, selected_columns, values))
+            names.append(name) #TODO get rid of appends if I'm not using them; although probably better to stick them into function
+            colors.append(color)
+            logos.append(logo)
+
+            draw_personnel_sankey(df, name, color, logo, minimum_snap_threshold, combine_groups)
+            #st.write('_____________')
+
+    elif selected_page == 'Heatmap':
+        print("Selected Page: ", selected_page)
+        st.header('Personnel Heatmap')
+        st.header('')
+        
+        comparison_mode = st.selectbox('Mode', ['Personnel Usage of Individual Groups', 'Compare Personnel Usage Between Groups']) #TODO better names
+        for i in range(1, MyFilter.group_count+1): #todo have a function for this?
+            name = coalesce(filter_selections[i]['name'], 'NFL')
+            color = filter_selections[i]['color']
+            values = filter_selections[i]['values']
+            masks = filter_selections[i]['masks']
+            shared_offense=filter_selections.get(0,{}).get('values',{}).get('Offense','')
+            shared_defense=filter_selections.get(0,{}).get('values',{}).get('Defense','')
+            offense = values.get('Offense', '')
+            defense = values.get('Defense', '')
+            team = coalesce(shared_offense,shared_defense,offense,defense)
+
+            df = add_filter_name_to_df(master_df, name)
+            #TODO allow ability to select defensive team's colors
+            color = hex_color_from_color_selection(color, team, df_team_info)
+            logo = get_logos(team, df_team_info)
+
+            df = filter_df(df, masks.values())
+            
+            dfs.append(df)
+            names.append(name)
+            colors.append(color)
+            logos.append(logo)
+        if len(dfs) < 2 and comparison_mode=='Compare Personnel Usage Between Groups':
+            st.header('You must select multiple groups with the filter on the left to use this mode')
+        else:
+            draw_heatmap(dfs, names, colors, logos, comparison_mode)
+
+    elif selected_page == 'Cut-Ups':
+        print("Selected Page: ", selected_page)
+        st.header('YouTube links to plays from each filter group')
+        st.markdown('_(adblocker recommended_)')
+        count_of_highlights = st.number_input('Select maximum number of videos to link:',value=5)
+        touchdowns_only = st.checkbox('Touchdowns only?',value=True)
+        st.markdown('_Recommended so that the play will show up on YouTube highlights_')
+        for i in range(1, MyFilter.group_count+1): #todo have a function for this?
+            name = coalesce(filter_selections[i]['name'], 'NFL')
+            values = filter_selections[i]['values']
+            masks = filter_selections[i]['masks']
+
+            df = add_filter_name_to_df(master_df, name)
+
+            df = filter_df(df, masks.values())
+            
+            # df = df.with_columns([pl.col(metric).alias('Metric')])
+            # selected_columns=['FilterName', 'Metric']
+            dfs.append(collect_df(df, ['Week','OffensiveTeam','DefensiveTeam','Quarter','TimeLeft', 'Touchdown'], values))
+            names.append(name)
+            df=dfs[i-1]
+            if touchdowns_only:
+                df = df[df['Touchdown']==1].reset_index(drop=True)
+            df = df.sort_values(by=['Week','OffensiveTeam','Quarter','TimeLeft']).reset_index(drop=True)
+            links = set()
+            st.header('')
+            st.header(name)
+            i=0
+            while len(links) <= count_of_highlights-1:
+                try:
+                    w = df['Week'][i]
+                    o = df['OffensiveTeam'][i]
+                    d = df['DefensiveTeam'][i]
+                    q = df['Quarter'][i].item()
+                    q = quarter_dict[q]
+                    raw_time = df['TimeLeft'][i].item()
+                    m = raw_time//60
+                    s = f'{raw_time%60:02}'
+                    md = f'{i+1}: [{o} vs {d} Week {w}, {m}:{s} left in {q}]'
+                    link = f'(https://www.google.com/search?btnI=1&q=2020+week+{w}+{o}+{d}%20site:youtube.com)'.replace(' ', '_')
+                    
+                    if md not in links:
+                        links.add(md)
+                        st.markdown(md+link)
+                    i+=1
+            
+                except:
+                    break
+
+    elif selected_page == 'About':
+        print("Selected Page: ", selected_page)
+        st.markdown('')
+        st.markdown('')
+        st.markdown('_Coming soon_')
+
+    # except Exception as e: print(e)
+        
