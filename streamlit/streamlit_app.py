@@ -6,13 +6,19 @@ import streamlit as st
 import numpy as np
 import pandas as pd
 import polars as pl
-import glob
 
 import seaborn as sns 
 import matplotlib.pyplot as plt 
 import plotly.graph_objects as go
+from toolz.itertoolz import pluck
+from typing import Iterable
+from streamlit_option_menu import option_menu
+
 
 from lib.filterwidget import MyFilter
+from lib.ridgeplot import draw_ridgeplot
+from lib.heatmap import draw_heatmap
+from lib.personnel_sankey import draw_personnel_sankey
 
 # for mpl animation
 import matplotlib.animation as animation
@@ -29,6 +35,60 @@ def get_data():
     play_results = pl.scan_parquet('Data\\results.parquet')
 
     return players, plays, games, tracking, play_results
+
+def get_active_filters() -> filter:
+    return filter(lambda _: _.is_enabled, st.session_state.filters)
+
+
+def is_any_filter_enabled() -> bool:
+    return any(pluck("is_enabled", st.session_state.filters))
+
+
+def get_human_filter_names(iter: Iterable) -> Iterable:
+    return pluck("human_name", iter)
+
+#TODO throw into helper lib
+def coalesce(*args):
+    val = args[0]
+    for arg in args:
+        if val:
+            return val
+        val = arg
+    return val
+
+def filter_df(df, masks):
+    for mask in masks:
+        df=df.filter(mask)
+    df = df.unique(subset='UniqueID') #TODO move this elsewhere?
+    return df
+
+ # *args is just there to force a cache update when there's a change in the filters
+@st.cache_data
+def collect_df(_df, selected_columns, *args):
+    return _df.select(selected_columns).collect().to_pandas()
+
+def add_filter_name_to_df(df, name):
+    return df.select([pl.lit(name).alias(('FilterName')), pl.all()])
+
+def get_item_from_team_info_df(selection, team, _df_team_info):
+    return _df_team_info.filter(pl.col('team_nick')==pl.lit(team)).select(selection).collect().item()
+
+# @st.cache_data
+# def get_logos(team, _df_team_info):
+#     if len(team) == 1:
+#         team=team[0]
+#     try:
+#         logos={
+#             'logo': get_item_from_team_info_df('team_logo_espn', team, _df_team_info),
+#             'wordmark': get_item_from_team_info_df('team_wordmark', team, _df_team_info),
+#         }        
+#         return logos
+#     except:
+#         logos={
+#             'logo': 'https://raw.githubusercontent.com/nflverse/nflverse-pbp/master/NFL.png',
+#             'wordmark': None #'https://raw.githubusercontent.com/nflverse/nflverse-pbp/master/NFL.png'
+#         }    
+#         return logos
 
 def draw_sidebar():
     """Should include dynamically generated filters"""
@@ -51,7 +111,7 @@ def draw_sidebar():
         )
 
         print("All selected filters", selected_filters)
-        
+
         #TODO universal filter
         #TODO load preset filters
         #TODO save current filter to preset
@@ -172,7 +232,7 @@ if __name__ == "__main__":
         #     suffix=' O',
         #     widget_type=st.multiselect,
         #     widget_options={'options':get_options(df_team_info,'team_division')},
-        # ),
+        # ),e333333333333
         # MyFilter(
         #     human_name='Offensive Conference',
         #     df_column='OffensiveConference',
@@ -437,6 +497,7 @@ if __name__ == "__main__":
         options = ['Ridgeline', 'Heatmap', 'Sankey','Cut-Ups', 'About']
         selected_page = option_menu(None, options, orientation='horizontal', styles={'icon': {'font-size': '0px'}})
         if selected_page == 'Ridgeline':
+            print("Selected Page: ", selected_page)
 
             st.header('EPA Ridgeline Plot and Stats')
             st.header('')
@@ -496,6 +557,7 @@ if __name__ == "__main__":
 
 
         elif selected_page == 'Sankey':
+            print("Selected Page: ", selected_page)
 
             st.header('Actual Personnel vs What Teams Lined Up Like')
             st.header('')
@@ -531,7 +593,7 @@ if __name__ == "__main__":
                 #st.write('_____________')
 
         elif selected_page == 'Heatmap':
-
+            print("Selected Page: ", selected_page)
             st.header('Personnel Heatmap')
             st.header('')
             
@@ -564,6 +626,7 @@ if __name__ == "__main__":
                 draw_heatmap(dfs, names, colors, logos, comparison_mode)
 
         elif selected_page == 'Cut-Ups':
+            print("Selected Page: ", selected_page)
             st.header('YouTube links to plays from each filter group')
             st.markdown('_(adblocker recommended_)')
             count_of_highlights = st.number_input('Select maximum number of videos to link:',value=5)
@@ -612,6 +675,7 @@ if __name__ == "__main__":
                         break
 
         elif selected_page == 'About':
+            print("Selected Page: ", selected_page)
             st.markdown('')
             st.markdown('')
             st.markdown('_Coming soon_')
