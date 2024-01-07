@@ -14,7 +14,6 @@ from toolz.itertoolz import pluck
 from typing import Iterable
 from streamlit_option_menu import option_menu
 
-
 from lib.filterwidget import MyFilter
 from lib.ridgeplot import draw_ridgeplot
 from lib.heatmap import draw_heatmap
@@ -47,8 +46,52 @@ def is_any_filter_enabled() -> bool:
 def get_human_filter_names(iter: Iterable) -> Iterable:
     return pluck("human_name", iter)
 
+team_colors = {
+    'ARI':["#97233F","#000000","#FFB612"], 
+    'ATL':["#A71930","#000000","#A5ACAF"], 
+    'BAL':["#241773","#000000"], 
+    'BUF':["#00338D","#C60C30"], 
+    'CAR':["#0085CA","#101820","#BFC0BF"], 
+    'CHI':["#0B162A","#C83803"], 
+    'CIN':["#FB4F14","#000000"], 
+    'CLE':["#311D00","#FF3C00"], 
+    'DAL':["#003594","#041E42","#869397"],
+    'DEN':["#FB4F14","#002244"], 
+    'DET':["#0076B6","#B0B7BC","#000000"], 
+    'GB' :["#203731","#FFB612"], 
+    'HOU':["#03202F","#A71930"], 
+    'IND':["#002C5F","#A2AAAD"], 
+    'JAX':["#101820","#D7A22A","#9F792C"], 
+    'KC' :["#E31837","#FFB81C"], 
+    'LA' :["#003594","#FFA300","#FF8200"], 
+    'LAC':["#0080C6","#FFC20E","#FFFFFF"], 
+    'LV' :["#000000","#A5ACAF"],
+    'MIA':["#008E97","#FC4C02","#005778"], 
+    'MIN':["#4F2683","#FFC62F"], 
+    'NE' :["#002244","#C60C30","#B0B7BC"], 
+    'NO' :["#101820","#D3BC8D"], 
+    'NYG':["#0B2265","#A71930","#A5ACAF"], 
+    'NYJ':["#125740","#000000","#FFFFFF"], 
+    'PHI':["#004C54","#A5ACAF","#ACC0C6"], 
+    'PIT':["#FFB612","#101820"], 
+    'SEA':["#002244","#69BE28","#A5ACAF"], 
+    'SF' :["#AA0000","#B3995D"],
+    'TB' :["#D50A0A","#FF7900","#0A0A08"], 
+    'TEN':["#0C2340","#4B92DB","#C8102E"], 
+    'WAS':["#5A1414","#FFB612"], 
+    'football':["#CBB67C","#663831"]
+}
+
+@st.cache_data
+def hex_color_from_color_selection(selection, team):
+    print("hex_color_from_color_selection()")
+
+    # Change this
+    return team_colors[team[0]][1]
+
 #TODO throw into helper lib
 def coalesce(*args):
+    print("coalesce()")
     val = args[0]
     for arg in args:
         if val:
@@ -57,6 +100,7 @@ def coalesce(*args):
     return val
 
 def filter_df(df, masks):
+    print("filter_df()")
     for mask in masks:
         df=df.filter(mask)
     df = df.unique(subset='UniqueID') #TODO move this elsewhere?
@@ -65,12 +109,14 @@ def filter_df(df, masks):
  # *args is just there to force a cache update when there's a change in the filters
 @st.cache_data
 def collect_df(_df, selected_columns, *args):
-    return _df.select(selected_columns).collect().to_pandas()
+    print("collect_df")
+    return  _df.select(selected_columns).collect().to_pandas()
 
 def add_filter_name_to_df(df, name):
     return df.select([pl.lit(name).alias(('FilterName')), pl.all()])
 
 def get_item_from_team_info_df(selection, team, _df_team_info):
+    print("get_item_from_team_info_df()")
     return _df_team_info.filter(pl.col('team_nick')==pl.lit(team)).select(selection).collect().item()
 
 # @st.cache_data
@@ -221,7 +267,7 @@ if __name__ == "__main__":
     st.session_state.filters = (
         MyFilter(
             human_name='Offense',
-            df_column='OffensiveTeam',
+            df_column='possessionTeam',
             suffix=' O',
             widget_type=st.multiselect,
             widget_options={'options':get_options(plays,'possessionTeam')},
@@ -242,7 +288,7 @@ if __name__ == "__main__":
         # ),
         MyFilter(
             human_name='Defense',
-            df_column='DefensiveTeam',
+            df_column='defensiveTeam',
             suffix=' D',
             widget_type=st.multiselect,
             widget_options={'options':get_options(plays,'defensiveTeam')},
@@ -493,7 +539,7 @@ if __name__ == "__main__":
         logos=[]
         
         #TODO this is main; reorganize all this crap
-        st.title('Shane Falco For Heisman')
+        st.title('Pulling the Plug')
         options = ['Ridgeline', 'Heatmap', 'Sankey','Cut-Ups', 'About']
         selected_page = option_menu(None, options, orientation='horizontal', styles={'icon': {'font-size': '0px'}})
         if selected_page == 'Ridgeline':
@@ -503,6 +549,7 @@ if __name__ == "__main__":
             st.header('')
 
             for i in range(1, MyFilter.group_count+1): #todo have a function for this?
+                print('Getting filter values')
                 name = coalesce(filter_selections[i]['name'], 'NFL')
                 color = filter_selections[i]['color']
                 values = filter_selections[i]['values']
@@ -512,22 +559,32 @@ if __name__ == "__main__":
                 offense = values.get('Offense', '')
                 defense = values.get('Defense', '')
                 team = coalesce(shared_offense,shared_defense,offense,defense,'NA')
+                print("Finished getting filter values")
 
-                df = add_filter_name_to_df(master_df, name)
+                df = add_filter_name_to_df(play_results, name)
                 #TODO allow ability to select defensive team's colors
-                color = hex_color_from_color_selection(color, team, df_team_info)
-
+                color = hex_color_from_color_selection(color, team)
                 df = filter_df(df, masks.values())
 
                 # start ridgeline function here?
-                metric = 'EPA' #TODO bring out of loop? and is the below stupid?
+                metric = 'expectedPointsAdded' #TODO bring out of loop? and is the below stupid?
                 
+                print("joining play_results to plays to get EPA")
+                df = df.join(plays, on='gameId', how='left')
+                print("finished joining play_results to plays to get EPA")    
+
                 df = df.with_columns([pl.col(metric).alias('Metric')])
+                st.write(df.collect().schema)
                 selected_columns=['FilterName', 'Metric']
-                dfs.append(collect_df(df, selected_columns, values))
+                # df = collect_df(df, selected_columns, values)
+                df = df.select(selected_columns).collect().to_pandas()
+                show(df)
+                print(df)
+                dfs.append(df)
                 names.append(name)
                 colors.append(color)
 
+                print("Creating Stats")
                 #TODO let them select which
                 stats_df=df.select([
                     pl.lit(name).alias('Name'),
@@ -537,7 +594,7 @@ if __name__ == "__main__":
                     pl.mean('expectedPointsAdded').round(2).alias('EPA/Play'),
                     pl.mean('SuccessfulPlay').round(2).alias('Success Rate'),
                     pl.mean('ExplosivePlay').round(2).alias('Explosive Rate'),
-                    pl.struct(pl.col('GameID'),pl.col('OffensiveTeam')).n_unique().alias('Games'),
+                    pl.struct(pl.col('gameId'),pl.col('possesionTeam')).n_unique().alias('Games'),
                     (pl.sum('playResult') / pl.struct(pl.col('GameID'),pl.col('OffensiveTeam')).n_unique()).round(0).alias('Yards/Game'),
                     # (pl.sum('OffensiveTD') / pl.struct(pl.col('GameID'),pl.col('OffensiveTeam')).n_unique()).round(1).alias('TDs/Game'),
                     # (pl.sum('InterceptionOnPlay') / pl.struct(pl.col('GameID'),pl.col('OffensiveTeam')).n_unique()).round(1).alias('INTs/Game'),#TODO remove defensive touchdowns,
@@ -546,12 +603,14 @@ if __name__ == "__main__":
                     # pl.sum('Touchdown')
                 ])
                 
+                print("Selecting Columns: ", selected_columns)
                 #TODO mess around with dataframe formatting available https://docs.streamlit.io/library/api-reference/data/st.dataframe
                 selected_columns=['Name','Plays','Yards/Play','EPA/Play','Success Rate','Explosive Rate','Games','Yards/Game'] #,'TDs/Game','INTs/Game','TDs','INTs']
                 stats_dfs.append(collect_df(stats_df, selected_columns, values, names))
 
 
             #TODO leave message if dfs = 0?
+            print("Attempting to draw ridge plot")
             draw_ridgeplot(dfs, names, colors, MyFilter.group_count)
             st.dataframe(pd.concat(stats_dfs),use_container_width=True)
 
