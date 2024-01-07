@@ -87,8 +87,32 @@ team_colors = {
 def hex_color_from_color_selection(selection, team):
     print("hex_color_from_color_selection()")
 
+    if len(team) == 1:
+        team=team[0]
+    if selection == 'Team Color 1':
+        try:
+            return team_colors[team[0]][1] 
+        except:
+            return '#013369'
+    elif selection == 'Team Color 2':
+        try:
+            return team_colors[team[0]][2]
+        except:
+            return '#D50A0A'
+    elif selection == 'Team Color 3':
+        try:
+            return team_colors[team[0]][3]
+        except:
+            return '#000000'
+    elif selection == 'Team Color 4':
+        try:
+            return team_colors[team[0]][4]
+        except:
+            return '#A5ACAF'
+    return selection
+
     # Change this
-    return team_colors[team[0]][1]
+    return 
 
 #TODO throw into helper lib
 def coalesce(*args):
