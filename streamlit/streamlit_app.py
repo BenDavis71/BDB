@@ -146,12 +146,13 @@ def draw_sidebar():
         st.markdown("""
         <style>
         .little-font {
-            font-size:14px !important;
+            font-size:14x !important;
         }
         </style>
         """, unsafe_allow_html=True) #TODO throw this into a function
+        st.title('Select which filters to enable')
         selected_filters = st.multiselect(
-            "Select which filters to enable",
+            '',
             list(get_human_filter_names(st.session_state.filters)),
             ['Offense'],
         )
@@ -161,7 +162,8 @@ def draw_sidebar():
         #TODO universal filter
         #TODO load preset filters
         #TODO save current filter to preset
-        MyFilter.group_count = st.number_input("Select how many groups to enable", 1, 20)
+        
+        MyFilter.group_count = st.number_input("Groups", 1, 20)
 
         print("Enabling filters")
         for table_filter in st.session_state.filters:
@@ -295,7 +297,7 @@ if __name__ == "__main__":
         ),
         MyFilter(
             human_name='Week',
-            df_column='Week',
+            df_column='week',
             prefix = 'Week ',
             widget_type=st.slider,
             widget_options={'min_value':1, 'max_value':get_max(games,'week'), 'value':[1,get_max(games,'week')]},
@@ -475,28 +477,17 @@ if __name__ == "__main__":
         #     widget_type=st.checkbox,
         # ),
     )
-        #TODO fake handoffs slider
-        #TODO oline
-        #run/pass (event type)
 
     print("Loading filters done")
-    
-    plays=plays.with_columns([
-        (pl.col('playResult') / pl.col('yardsToGo')).alias('PctYardsGained'),
-        #pl.when((pl.col('Touchdown')==1)&(pl.col('Turnover')==0)).then(1).otherwise(0).alias('OffensiveTD')
-    ])
 
-    print("PctYardsGained done")
-
-    nfl_success_rate=[.45,.6,1]
-    # college_success_rate=[.5,.7,1]
-    success_rate=nfl_success_rate#TODO modify success rate for college
     plays=plays.with_columns([
         pl.when(pl.col('expectedPointsAdded')>pl.lit(0)).then(1).otherwise(0).alias('SuccessfulPlay'),
-        pl.when(pl.col('playResult')>pl.lit(15)).then(1).otherwise(0).alias('ExplosivePlay')
-    ]) #TODO write this to the prquet have I already?
+        pl.when(pl.col('playResult')>=pl.lit(10)).then(1).otherwise(0).alias('ExplosivePlay'),
+        pl.when(pl.col('playResult')<=pl.lit(0)).then(1).otherwise(0).alias('StuffedPlay'),
 
-    print("SuccessPlay/ExplosivePlay done")
+    ]) 
+
+    print("SuccessPlay/ExplosivePlay/StuffedPlay done")
     
     # st.write(plays.collect().to_pandas())
     # try:
@@ -525,7 +516,8 @@ if __name__ == "__main__":
     logos=[]
 
     #TODO this is main; reorganize all this crap
-    st.title('Pulling the Plug')
+    st.title('Pull the Plug')
+    # st.image('/Users/bendavis/Documents/GitHub/BDB/assets/pullThePlug.png')
     options = ['Ridgeline', 'Heatmap', 'Sankey','Cut-Ups', 'About']
     selected_page = option_menu(None, options, orientation='horizontal', styles={'icon': {'font-size': '0px'}})
     if selected_page == 'Ridgeline':
@@ -547,6 +539,7 @@ if __name__ == "__main__":
             defense = values.get('Defense', '')
             team = coalesce(shared_offense,shared_defense,offense,defense,'NA')
             print("Finished getting filter values")
+
 
             df = add_filter_name_to_df(play_results, name)
             #TODO allow ability to select defensive team's colors
@@ -585,12 +578,13 @@ if __name__ == "__main__":
                 pl.mean('playResult').round(1).alias('Yards/Play'),
                 pl.mean('expectedPointsAdded').round(2).alias('EPA/Play'),
                 pl.mean('SuccessfulPlay').round(2).alias('Success Rate'),
-                pl.mean('ExplosivePlay').round(2).alias('Explosive Rate')
+                pl.mean('ExplosivePlay').round(2).alias('Explosive Rate'),
+                pl.mean('StuffedPlay').round(2).alias('Stuff Rate')
             ])
             
             print("Selecting Columns: ", selected_columns)
             #TODO mess around with dataframe formatting available https://docs.streamlit.io/library/api-reference/data/st.dataframe
-            selected_columns=['Name','Plays','Yards/Play','EPA/Play','Success Rate','Explosive Rate']
+            selected_columns=['Name','Plays','Yards/Play','EPA/Play','Success Rate','Explosive Rate','Stuff Rate']
             stats_dfs.append(collect_df(stats_df, selected_columns, values, names))
             
         #TODO leave message if dfs = 0?
