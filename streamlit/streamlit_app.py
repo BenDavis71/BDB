@@ -46,6 +46,7 @@ def is_any_filter_enabled() -> bool:
 def get_human_filter_names(iter: Iterable) -> Iterable:
     return pluck("human_name", iter)
 
+
 team_colors = {
     'ARI':["#97233F","#000000","#FFB612"], 
     'ATL':["#A71930","#000000","#A5ACAF"], 
@@ -82,7 +83,7 @@ team_colors = {
     'football':["#CBB67C","#663831"]
 }
 
-@st.cache_data
+#TODO fix to include other selections
 def hex_color_from_color_selection(selection, team):
     print("hex_color_from_color_selection()")
 
@@ -581,6 +582,9 @@ if __name__ == "__main__":
                 # df = collect_df(df, selected_columns, values)
                 # df = df.select(selected_columns).collect().to_pandas()
                 
+
+                #TODO exclude don't work
+                #TODO defense don't work
                 dfs.append(df.select(selected_columns).collect().to_pandas())
                 names.append(name)
                 colors.append(color)
