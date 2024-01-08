@@ -1022,9 +1022,8 @@ if __name__ == "__main__":
             
             return (x_values, y_values, x1_values, y1_values)
 
-        for i in range(1, MyFilter.group_count+1): #todo have a function for this?
+        for i in range(1): #todo have a function for this?
             print('Getting filter values')
-
             name = coalesce(filter_selections[i]['name'], 'NFL')
             color = filter_selections[i]['color']
             values = filter_selections[i]['values']
@@ -1036,12 +1035,16 @@ if __name__ == "__main__":
             team = coalesce(shared_offense,shared_defense,offense,defense,'NA')
             print("Finished getting filter values")
 
+            df = add_filter_name_to_df(play_results, name)
+            #TODO allow ability to select defensive team's colors
+            color = hex_color_from_color_selection(color, team, team_info)
 
-        st.write(offense)
-        st.write(defense)
+            df = filter_df(df, masks.values())
+            st.write(df.schema)
 
-        plays = plays.filter(pl.col('possessionTeam')==offense[0]).filter(pl.col('defensiveTeam')==defense[0])
         tracking = tracking.filter(pl.col('gameId')==2022091107).filter(pl.col('playId')==1841)
+
+        st.write(defenseType)
 
         st.plotly_chart(animate_play(games.collect().to_pandas(), tracking.collect().to_pandas(), plays.collect().to_pandas(), players.collect().to_pandas(), 2022091107, 1841))
         
