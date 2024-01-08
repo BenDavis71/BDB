@@ -24,7 +24,7 @@ import matplotlib.animation as animation
 from matplotlib import rc
 rc('animation', html='html5')
 
-# @st.cache_data(persist=True, show_spinner=False)
+@st.cache_data(persist=False, show_spinner=False)
 def get_data():
     # read all data
     players = pl.scan_parquet('Data/players.parquet')
@@ -132,7 +132,7 @@ def filter_df(df, masks):
     return df
 
  # *args is just there to force a cache update when there's a change in the filters
-# @st.cache_data
+@st.cache_data
 def collect_df(_df, selected_columns, *args):
     return  _df.select(selected_columns).collect().to_pandas()
 
@@ -559,7 +559,7 @@ if __name__ == "__main__":
 
     #TODO this is main; reorganize all this crap
     # st.title('Pull the Plug')
-    st.image('/Users/bendavis/Documents/GitHub/BDB/assets/littleLogo.png')
+    # st.image('/Users/bendavis/Documents/GitHub/BDB/assets/littleLogo.png')
     options = ['Ridgeline', 'Play Animation', 'About']
     selected_page = option_menu(None, options, orientation='horizontal', styles={'icon': {'font-size': '0px'}})
     if selected_page == 'Ridgeline':
@@ -882,7 +882,7 @@ if __name__ == "__main__":
                 sliders_dict["steps"].append(slider_step)
                 frames.append(go.Frame(data=data, name=str(frameId)))
 
-            scale=10
+            scale=8
             layout = go.Layout(
                 autosize=False,
                 height=120*scale,
@@ -1015,21 +1015,10 @@ if __name__ == "__main__":
             
             return (x_values, y_values, x1_values, y1_values)
 
-        # Get filters
-        for i in range(1, MyFilter.group_count+1): #todo have a function for this?
-            print('Getting filter values')
-            name = coalesce(filter_selections[i]['name'], 'NFL')
-            color = filter_selections[i]['color']
-            values = filter_selections[i]['values']
-            masks = filter_selections[i]['masks']
-            shared_offense=filter_selections.get(0,{}).get('values',{}).get('Offense','')
-            shared_defense=filter_selections.get(0,{}).get('values',{}).get('Defense','')
-            offense = values.get('Offense', '')
-            defense = values.get('Defense', '')
-            team = coalesce(shared_offense,shared_defense,offense,defense,'NA')
-            print("Finished getting filter values")
-        
-            st.write(animate_play(games.collect().to_pandas(), tracking.collect().to_pandas(), plays.collect().to_pandas(), players.collect().to_pandas(), 2022091107, 1841))
+        # change this to join eventually
+        tracking = tracking.filter(pl.col('gameId')==2022091107).filter(pl.col('playId')==1841)
+
+        st.plotly_chart(animate_play(games.collect().to_pandas(), tracking.collect().to_pandas(), plays.collect().to_pandas(), players.collect().to_pandas(), 2022091107, 1841))
         
 
     elif selected_page == 'About':
