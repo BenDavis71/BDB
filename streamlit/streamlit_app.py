@@ -24,7 +24,7 @@ import matplotlib.animation as animation
 from matplotlib import rc
 rc('animation', html='html5')
 
-@st.cache_data(persist=True, show_spinner=False)
+# @st.cache_data(persist=True, show_spinner=False)
 def get_data():
     # read all data
     players = pl.scan_parquet('Data/players.parquet')
@@ -500,11 +500,29 @@ if __name__ == "__main__":
         #     df_column='NubTE',
         #     widget_type=st.checkbox,
         # ),
+        MyFilter(
+            human_name='Box, Spill, or Dent',
+            df_column='defenseType',
+            widget_type=st.multiselect,
+            widget_options={'options':['Box','Spill','Dent']}
+        ),
+        MyFilter(
+            human_name='Defenders In Box',
+            df_column='defendersInTheBox',
+            suffix = ' Box Defenders',
+            widget_type=st.slider,
+            # widget_options={'options':get_options(play_results,'defendersInTheBox')},
+            widget_options={'min_value':5, 'max_value':11, 'value':[5,11]},
+        ),
     )
+
+    # st.write(play_results.schema)
+    # st.write(get_options(play_results,'defenseType'))
+    
 
     print("Loading filters done")
 
-    plays=plays.with_columns([
+    play_results=play_results.with_columns([
         pl.when(pl.col('expectedPointsAdded')>pl.lit(0)).then(1).otherwise(0).alias('SuccessfulPlay'),
         pl.when(pl.col('playResult')>=pl.lit(10)).then(1).otherwise(0).alias('ExplosivePlay'),
         pl.when(pl.col('playResult')<=pl.lit(0)).then(1).otherwise(0).alias('StuffedPlay'),
@@ -540,8 +558,8 @@ if __name__ == "__main__":
     logos=[]
 
     #TODO this is main; reorganize all this crap
-    st.title('Pull the Plug')
-    # st.image('/Users/bendavis/Documents/GitHub/BDB/assets/pullThePlug.png')
+    # st.title('Pull the Plug')
+    st.image('/Users/bendavis/Documents/GitHub/BDB/assets/littleLogo.png')
     options = ['Ridgeline', 'Play Animation', 'About']
     selected_page = option_menu(None, options, orientation='horizontal', styles={'icon': {'font-size': '0px'}})
     if selected_page == 'Ridgeline':
@@ -576,9 +594,9 @@ if __name__ == "__main__":
             # start ridgeline function here?
             metric = 'expectedPointsAdded' #TODO bring out of loop? and is the below stupid?
             
-            print("joining play_results to plays to get EPA")
-            df = df.join(plays, on=['gameId','playId'], how='left')
-            print("finished joining play_results to plays to get EPA")  
+            # print("joining play_results to plays to get EPA")
+            # df = df.join(plays, on=['gameId','playId'], how='left')
+            # print("finished joining play_results to plays to get EPA")  
 
             # df.schema
             df = df.with_columns([pl.col(metric).alias('Metric')])
