@@ -495,7 +495,13 @@ if __name__ == "__main__":
         #     human_name='Nub TE',
         #     df_column='NubTE',
         #     widget_type=st.checkbox,
-        # ),
+        # ), 
+        MyFilter(
+            human_name='Play Family',
+            df_column='playFamily',
+            widget_type=st.multiselect,
+            widget_options={'options':get_options(play_results,'playFamily')}
+        ),
         MyFilter(
             human_name='Box, Spill, or Dent',
             df_column='defenseType',
@@ -503,7 +509,7 @@ if __name__ == "__main__":
             widget_options={'options':['Box','Spill','Dent']}
         ),
         MyFilter(
-            human_name='Box Type',
+            human_name='Box Type',  
             df_column='boxType',
             suffix = ' Box',
             widget_type=st.multiselect,
