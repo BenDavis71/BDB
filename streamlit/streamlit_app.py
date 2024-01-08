@@ -1022,49 +1022,54 @@ if __name__ == "__main__":
         color = filter_selections[1]['color']
         values = filter_selections[1]['values']
         masks = filter_selections[1]['masks']
-        shared_offense=filter_selections.get(0,{}).get('values',{}).get('Offense','')
-        shared_defense=filter_selections.get(0,{}).get('values',{}).get('Defense','')
         offense = values.get('Offense', '')
         defense = values.get('Defense', '')
-        team = coalesce(shared_offense,shared_defense,offense,defense,'NA')
         print("Finished getting filter values")
 
-        df = add_filter_name_to_df(play_results, name)
-        #TODO allow ability to select defensive team's colors
-        color = hex_color_from_color_selection(color, team, team_info)
+        if (offense == None or defense == None):
+            st.write('Please filter on an Offense and Defense team')
+        else:
+            # I don't think we need df, joining on df causes stuff to blow up in size and not load.
+            # Would rather just filter on plays and then drill down from there
+            # df = add_filter_name_to_df(play_results, name)
 
-        df = filter_df(df, masks.values())
+            # df = filter_df(df, masks.values())
 
-        # Rename possessionTeam and DefensiveTeam to offense and defense
-        plays = plays.with_columns([
-            pl.col('possessionTeam').alias('offense'),
-            pl.col('defensiveTeam').alias('defense'),
-        ])
+            # Rename possessionTeam and DefensiveTeam to offense and defense
+            plays = plays.with_columns([
+                pl.col('possessionTeam').alias('offense'),
+                pl.col('defensiveTeam').alias('defense'),
+            ])
 
-        plays = plays.filter(pl.col('possessionTeam')==offense[0]).filter(pl.col('defensiveTeam')==defense[0])
-        tracking = tracking.join(plays.select(['gameId', 'playId']), on=['gameId', 'playId'])
-        
-        tracking = tracking.select(['nflId', 'gameId', 'playId', 'frameId', 'club', 'playDirection', 'jerseyNumber', 'x', 'y']).collect()
-        unique_plays = tracking.select('gameId', 'playId').unique()
+            plays = plays.filter(pl.col('possessionTeam')==offense[0]).filter(pl.col('defensiveTeam')==defense[0])
+            tracking = tracking.join(plays.select(['gameId', 'playId']), on=['gameId', 'playId'])
+            
+            tracking = tracking.select(['nflId', 'gameId', 'playId', 'frameId', 'club', 'playDirection', 'jerseyNumber', 'x', 'y']).collect()
+            unique_plays = tracking.select('gameId', 'playId').unique()
 
-        play_filter = st.multiselect(
-            '',
-            list(range(tracking.select('gameId', 'playId').unique().shape[0])),
-        )
-
-        selected_play = unique_plays[play_filter]
-
-        st.plotly_chart(
-            animate_play(
-                games.collect().to_pandas(), 
-                tracking.to_pandas(), 
-                plays.collect().to_pandas(), 
-                players.collect().to_pandas(), 
-                selected_play['gameId'][0], 
-                selected_play['playId'][0]
+            st.write('Choose a play to view')
+            play_filter = st.multiselect(
+                '',
+                list(range(unique_plays.shape[0])),
             )
-        )
-        
+
+            if len(play_filter) != 0: 
+                st.write('Viewing play ', play_filter, " of ", unique_plays.shape[0])  
+                selected_play = unique_plays[play_filter]
+
+                st.plotly_chart(
+                    animate_play(
+                        games.collect().to_pandas(), 
+                        tracking.to_pandas(), 
+                        plays.collect().to_pandas(), 
+                        players.collect().to_pandas(), 
+                        selected_play['gameId'][0], 
+                        selected_play['playId'][0]
+                    )
+                )
+            else:
+                st.title('No play selected')
+            
 
     elif selected_page == 'About':
         print("Selected Page: ", selected_page)
