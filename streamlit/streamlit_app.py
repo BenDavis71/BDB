@@ -24,7 +24,7 @@ import matplotlib.animation as animation
 from matplotlib import rc
 rc('animation', html='html5')
 
-@st.cache_data(persist=False, show_spinner=False)
+@st.cache_data(persist=True, show_spinner=False)
 def get_data():
     # read all data
     players = pl.scan_parquet('Data/players.parquet')
@@ -34,6 +34,9 @@ def get_data():
     play_results = pl.scan_parquet('Data/results.parquet')
     team_info = pl.read_csv('Data/teams_colors_logos.csv')
 
+    play_results = play_results.with_columns(
+        pl.when(pl.col('wildcat')==1).then(True).otherwise(False).alias('wildcat')
+        )
     return players, plays, games, tracking, play_results, team_info
 
 def get_active_filters() -> filter:
@@ -467,35 +470,10 @@ if __name__ == "__main__":
         #     widget_options={'min_value':0, 'max_value':get_max(df,'FakeHandoffs'), 'value':[0,get_max(df,'FakeHandoffs')]},
         # ),
         # MyFilter(
-        #     human_name='Under Center',
-        #     df_column='UnderCenter',
-        #     widget_type=st.checkbox,
-        # ),
-        # MyFilter(
-        #     human_name='Quick Motion',
-        #     df_column='QuickMotion',
-        #     widget_type=st.checkbox,
-        # ),
-        # MyFilter(
         #     human_name='Wildcat',
         #     df_column='Wildcat',
         #     widget_type=st.checkbox,
         # ),
-        # MyFilter(
-        #     human_name='Flex RB',
-        #     df_column='FlexRB',
-        #     widget_type=st.checkbox,
-        # ),
-        # MyFilter(
-        #     human_name='Flex TE',
-        #     df_column='FlexTE',
-        #     widget_type=st.checkbox,
-        # ),
-        # MyFilter(
-        #     human_name='Nub TE',
-        #     df_column='NubTE',
-        #     widget_type=st.checkbox,
-        # ), 
         MyFilter(
             human_name='Play Family',
             df_column='playFamily',
@@ -515,17 +493,62 @@ if __name__ == "__main__":
             widget_options={'options':['Box','Spill','Dent']}
         ),
         MyFilter(
-            human_name='Box Type',  
-            df_column='boxType',
-            suffix = ' Box',
+            human_name='Offensive Personnel',
+            df_column='personnel',
+            suffix='p',
             widget_type=st.multiselect,
-            widget_options={'options':['Heavy','Light']}
+            widget_options={'options':get_options(play_results,'personnel')}
         ),
         MyFilter(
-            human_name='Playside Front Characteristics',
-            df_column='playsideFrontCharacteristics',
+            human_name='QB Alignment',
+            df_column='qbAlignment',
             widget_type=st.multiselect,
-            widget_options={'options':get_options(play_results,'playsideFrontCharacteristics')}
+            widget_options={'options':get_options(play_results,'qbAlignment')}
+        ),
+        MyFilter(
+            human_name='Backfield Formation',
+            df_column='backfieldFormation',
+            widget_type=st.multiselect,
+            widget_options={'options':get_options(play_results,'backfieldFormation')}
+        ),
+        MyFilter(
+            human_name='Wildcat',
+            df_column='wildcat',
+            widget_type=st.checkbox,
+        ),
+        MyFilter(
+            human_name='Receiver Distribution',
+            df_column='receiverDistribution',
+            widget_type=st.multiselect,
+            widget_options={'options':get_options(play_results,'receiverDistribution')}
+        ),
+        MyFilter(
+            human_name='Right Receiver Formation',
+            df_column='rightReceiverFormation',
+            suffix=' Right',
+            widget_type=st.multiselect,
+            widget_options={'options':get_options(play_results,'rightReceiverFormation')}
+        ),
+        MyFilter(
+            human_name='Left Receiver Formation',
+            df_column='leftReceiverFormation',
+            suffix=' Left',
+            widget_type=st.multiselect,
+            widget_options={'options':get_options(play_results,'leftReceiverFormation')}
+        ),
+        MyFilter(
+            human_name='Playside',
+            df_column='playside',
+            prefix='Playside ',
+            widget_type=st.multiselect,
+            widget_options={'options':get_options(play_results,'playside')}
+        ),
+        MyFilter(
+            human_name='Run Strength',
+            df_column='runStrength',
+            prefix='Run Strength ',
+            widget_type=st.multiselect,
+            widget_options={'options':get_options(play_results,'runStrength')}
         ),
         MyFilter(
             human_name='Playside Surface',
@@ -534,11 +557,57 @@ if __name__ == "__main__":
             widget_type=st.slider,
             widget_options={'min_value':2,'max_value':5,'value':[2,5]}
         ),
+        MyFilter(
+            human_name='Ball Carrier',
+            df_column='ballCarrierDisplayName',
+            widget_type=st.multiselect,
+            widget_options={'options':get_options(play_results,'ballCarrierDisplayName')}
+        ),
+        MyFilter(
+            human_name='Defensive Personnel',
+            df_column='defensivePersonnel',
+            widget_type=st.multiselect,
+            widget_options={'options':get_options(play_results,'defensivePersonnel')}
+        ),
+        MyFilter(
+            human_name='Defensive Personnel Group',
+            df_column='defensivePersonnelGroup',
+            suffix = ' D',
+            widget_type=st.multiselect,
+            widget_options={'options':get_options(play_results,'defensivePersonnelGroup')}
+        ),
+        MyFilter(
+            human_name='Front Family',
+            df_column='generalFront',
+            suffix = ' Front',
+            widget_type=st.multiselect,
+            widget_options={'options':get_options(play_results,'generalFront')}
+        ),
+        MyFilter(
+            human_name='Front',
+            df_column='front',
+            suffix = ' Front',
+            widget_type=st.multiselect,
+            widget_options={'options':get_options(play_results,'front')}
+        ),
+        MyFilter(
+            human_name='Playside Front Characteristics',
+            df_column='playsideFrontCharacteristics',
+            widget_type=st.multiselect,
+            widget_options={'options':get_options(play_results,'playsideFrontCharacteristics')}
+        ),
+        MyFilter(
+            human_name='Box Type',  
+            df_column='boxType',
+            suffix = ' Box',
+            widget_type=st.multiselect,
+            widget_options={'options':['Heavy','Light']}
+        ),
     )
 
     # st.write(play_results.schema)
     # st.write(get_options(play_results,'defenseType'))
-    
+    # st.write(play_results.schema)
 
     print("Loading filters done")
 
