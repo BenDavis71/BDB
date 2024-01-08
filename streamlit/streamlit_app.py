@@ -507,12 +507,24 @@ if __name__ == "__main__":
             widget_options={'options':['Box','Spill','Dent']}
         ),
         MyFilter(
-            human_name='Defenders In Box',
-            df_column='defendersInTheBox',
-            suffix = ' Box Defenders',
+            human_name='Box Type',
+            df_column='boxType',
+            suffix = ' Box',
+            widget_type=st.multiselect,
+            widget_options={'options':['Heavy','Light']}
+        ),
+        MyFilter(
+            human_name='Playside Front Characteristics',
+            df_column='playsideFrontCharacteristics',
+            widget_type=st.multiselect,
+            widget_options={'options':get_options(play_results,'playsideFrontCharacteristics')}
+        ),
+        MyFilter(
+            human_name='Playside Surface',
+            df_column='playsideSurface',
+            suffix = ' Man Surface',
             widget_type=st.slider,
-            # widget_options={'options':get_options(play_results,'defendersInTheBox')},
-            widget_options={'min_value':5, 'max_value':11, 'value':[5,11]},
+            widget_options={'min_value':2,'max_value':5,'value':[2,5]}
         ),
     )
 
@@ -559,7 +571,7 @@ if __name__ == "__main__":
 
     #TODO this is main; reorganize all this crap
     # st.title('Pull the Plug')
-    st.image('https://raw.githubusercontent.com/BenDavis71/BDB/main/assets/littleLogo.png?token=GHSAT0AAAAAACMPMACTNZJQ2LT3WYUZUH4IZM3LFFA')
+    st.image('https://github.com/BenDavis71/BDB/blob/da386305f8711aa8f6eeb71662425ff3e7e0c2ca/assets/littleLogo.png?raw=true')
     options = ['Ridgeline', 'Play Animation', 'About']
     selected_page = option_menu(None, options, orientation='horizontal', styles={'icon': {'font-size': '0px'}})
     if selected_page == 'Ridgeline':
