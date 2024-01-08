@@ -91,28 +91,27 @@ def hex_color_from_color_selection(selection, team):
         team=team[0]
     if selection == 'Team Color 1':
         try:
-            return team_colors[team[0]][1] 
+            return team_colors[team][1] 
         except:
             return '#013369'
     elif selection == 'Team Color 2':
         try:
-            return team_colors[team[0]][2]
+            return team_colors[team][2]
         except:
             return '#D50A0A'
     elif selection == 'Team Color 3':
         try:
-            return team_colors[team[0]][3]
+            return team_colors[team][3]
         except:
             return '#000000'
     elif selection == 'Team Color 4':
         try:
-            return team_colors[team[0]][4]
+            return team_colors[team][4]
         except:
             return '#A5ACAF'
+
     return selection
 
-    # Change this
-    return 
 
 #TODO throw into helper lib
 def coalesce(*args):
@@ -571,11 +570,7 @@ if __name__ == "__main__":
 
     #TODO this is main; reorganize all this crap
     # st.title('Pull the Plug')
-<<<<<<< HEAD
-    # st.image('/Users/bendavis/Documents/GitHub/BDB/assets/littleLogo.png')
-=======
     st.image('https://github.com/BenDavis71/BDB/blob/da386305f8711aa8f6eeb71662425ff3e7e0c2ca/assets/littleLogo.png?raw=true')
->>>>>>> a4d87563acad9fa76b22d1cfc8f200591ddeb490
     options = ['Ridgeline', 'Play Animation', 'About']
     selected_page = option_menu(None, options, orientation='horizontal', styles={'icon': {'font-size': '0px'}})
     if selected_page == 'Ridgeline':
@@ -626,6 +621,8 @@ if __name__ == "__main__":
             dfs.append(df.select(selected_columns).collect().to_pandas())
             names.append(name)
             colors.append(color)
+
+            st.write(color)
 
             print("Creating Stats")
             #TODO let them select which
