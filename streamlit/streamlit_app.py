@@ -24,14 +24,14 @@ import matplotlib.animation as animation
 from matplotlib import rc
 rc('animation', html='html5')
 
-@st.cache_data(persist=True, show_spinner=False)
+# @st.cache_data(persist=True, show_spinner=False)
 def get_data():
     # read all data
-    players = pl.scan_parquet('Data/players.parquet')
-    plays = pl.scan_parquet('Data/plays.parquet')
-    games = pl.scan_parquet('Data/games.parquet')
-    tracking = pl.scan_parquet('Data/tracking_week_*.parquet')
-    play_results = pl.scan_parquet('Data/results.parquet')
+    players = pl.read_parquet('Data/players.parquet')
+    plays = pl.read_parquet('Data/plays.parquet')
+    games = pl.read_parquet('Data/games.parquet')
+    tracking = pl.read_parquet('Data/tracking_week_*.parquet')
+    play_results = pl.read_parquet('Data/results.parquet')
     team_info = pl.read_csv('Data/teams_colors_logos.csv')
 
     play_results = play_results.with_columns(
@@ -275,6 +275,12 @@ if __name__ == "__main__":
     
     # Read in data
     players, plays, games, tracking, play_results, team_info = get_data()
+
+    players = players.lazy()
+    plays = plays.lazy()
+    games = games.lazy()
+    tracking = tracking.lazy()
+    play_results = play_results.lazy()
 
     #TODO put these filters in a function on another page or something
     passing_concepts=['Arches', 'Bow', 'Dragon', 'Drive', 'Leak', 'Mesh', 'Sail', 'Scissors', 'Shallow Cross', 'Shock', 'Smash', 'Snag', 'Stick', 'Tosser', 'Y Cross']
