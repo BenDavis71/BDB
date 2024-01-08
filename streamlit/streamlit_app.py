@@ -503,6 +503,12 @@ if __name__ == "__main__":
             widget_options={'options':get_options(play_results,'playFamily')}
         ),
         MyFilter(
+            human_name='Play',
+            df_column='play',
+            widget_type=st.multiselect,
+            widget_options={'options':get_options(play_results,'play')}
+        ),
+        MyFilter(
             human_name='Box, Spill, or Dent',
             df_column='defenseType',
             widget_type=st.multiselect,
@@ -573,7 +579,7 @@ if __name__ == "__main__":
 
     #TODO this is main; reorganize all this crap
     # st.title('Pull the Plug')
-    st.image('https://github.com/BenDavis71/BDB/blob/da386305f8711aa8f6eeb71662425ff3e7e0c2ca/assets/littleLogo.png?raw=true')
+    st.image('https://github.com/BenDavis71/BDB/blob/4ac975ebc7f7f6b55e043ce5559ee348a1a00729/assets/littleLogo.png?raw=True')
     options = ['Ridgeline', 'Play Animation', 'About']
     selected_page = option_menu(None, options, orientation='horizontal', styles={'icon': {'font-size': '0px'}})
     if selected_page == 'Ridgeline':
@@ -1047,7 +1053,7 @@ if __name__ == "__main__":
         # df.schema
         df = df.with_columns([pl.col(metric).alias('Metric')])
 
-        if (offense == None or defense == None):
+        if False:
             st.write('Please filter on an Offense and Defense team')
         else:
             # Rename possessionTeam and DefensiveTeam to offense and defense
@@ -1055,6 +1061,7 @@ if __name__ == "__main__":
                 pl.col('possessionTeam').alias('offense'),
                 pl.col('defensiveTeam').alias('defense'),
             ])
+            st.title(name)
 
             plays = plays.join(df.select(['offense', 'defense']), on=['offense', 'defense'])
             tracking = tracking.join(df.select(['gameId', 'playId']), on=['gameId', 'playId'])
