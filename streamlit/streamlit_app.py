@@ -1019,29 +1019,38 @@ if __name__ == "__main__":
     
         print('Getting filter values')
         name = coalesce(filter_selections[1]['name'], 'NFL')
-        color = filter_selections[1]['color']
         values = filter_selections[1]['values']
         masks = filter_selections[1]['masks']
         offense = values.get('Offense', '')
         defense = values.get('Defense', '')
         print("Finished getting filter values")
 
+        df = add_filter_name_to_df(play_results, name)
+        #TODO allow ability to select defensive team's colors
+
+        df = filter_df(df, masks.values())
+
+
+        # start ridgeline function here?
+        metric = 'expectedPointsAdded' #TODO bring out of loop? and is the below stupid?
+        
+        # print("joining play_results to plays to get EPA")
+        # df = df.join(plays, on=['gameId','playId'], how='left')
+        # print("finished joining play_results to plays to get EPA")  
+
+        # df.schema
+        df = df.with_columns([pl.col(metric).alias('Metric')])
+
         if (offense == None or defense == None):
             st.write('Please filter on an Offense and Defense team')
         else:
-            # I don't think we need df, joining on df causes stuff to blow up in size and not load.
-            # Would rather just filter on plays and then drill down from there
-            # df = add_filter_name_to_df(play_results, name)
-
-            # df = filter_df(df, masks.values())
-
             # Rename possessionTeam and DefensiveTeam to offense and defense
             plays = plays.with_columns([
                 pl.col('possessionTeam').alias('offense'),
                 pl.col('defensiveTeam').alias('defense'),
             ])
 
-            plays = plays.filter(pl.col('possessionTeam')==offense[0]).filter(pl.col('defensiveTeam')==defense[0])
+            plays = plays.join(df.select(['offense', 'defense']), on=['offense', 'defense'])
             tracking = tracking.join(plays.select(['gameId', 'playId']), on=['gameId', 'playId'])
             
             tracking = tracking.select(['nflId', 'gameId', 'playId', 'frameId', 'club', 'playDirection', 'jerseyNumber', 'x', 'y']).collect()
@@ -1054,7 +1063,7 @@ if __name__ == "__main__":
             )
 
             if len(play_filter) != 0: 
-                st.write('Viewing play ', play_filter, " of ", unique_plays.shape[0])  
+                st.write('Viewing play ', play_filter[0], " of ", unique_plays.shape[0])  
                 selected_play = unique_plays[play_filter]
 
                 st.plotly_chart(
