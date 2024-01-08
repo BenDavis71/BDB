@@ -94,8 +94,7 @@ def hex_color_from_color_selection(selection, team, _df_team_info):
     if selection == 'Team Color 1':
         try:
             return get_item_from_team_info_df('team_color', team, _df_team_info) 
-        except Exception as e: 
-            st.write(e)
+        except:
             return '#013369'
     elif selection == 'Team Color 2':
         try:
