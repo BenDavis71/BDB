@@ -1057,20 +1057,20 @@ if __name__ == "__main__":
             ])
 
             plays = plays.join(df.select(['offense', 'defense']), on=['offense', 'defense'])
-            tracking = tracking.join(plays.select(['gameId', 'playId']), on=['gameId', 'playId'])
+            tracking = tracking.join(df.select(['gameId', 'playId']), on=['gameId', 'playId'])
             
             tracking = tracking.select(['nflId', 'gameId', 'playId', 'frameId', 'club', 'playDirection', 'jerseyNumber', 'x', 'y']).collect()
             unique_plays = tracking.select('gameId', 'playId').unique()
 
             st.write('Choose a play to view')
-            play_filter = st.multiselect(
+            play_filter = st.selectbox(
                 '',
-                list(range(unique_plays.shape[0])),
+                list(range(1,unique_plays.shape[0]+1)),
             )
 
-            if len(play_filter) != 0: 
-                st.write('Viewing play ', play_filter[0], " of ", unique_plays.shape[0])  
-                selected_play = unique_plays[play_filter]
+            if play_filter != 0: 
+                st.write('Viewing play ', play_filter, " of ", unique_plays.shape[0])
+                selected_play = unique_plays[play_filter-1]
 
                 st.plotly_chart(
                     animate_play(
