@@ -845,7 +845,7 @@ if __name__ == "__main__":
                         for nflId in plot_df.nflId:
                             selected_player_df = plot_df[plot_df.nflId==nflId]
 
-                            if (selected_player_df.jerseyNumber.values[0] in highlighted_players) or (len(highlighted_players) == 0):
+                            if selected_player_df.jerseyNumber.values[0] in highlighted_players:
                                 vision_cone = get_vision_cone_coordinates(selected_player_df)
                                 data.append(go.Scatter(
                                     x=vision_cone[0], y=vision_cone[1], mode='lines', line_shape='spline', fill='toself',  # Fill the area inside the polygon
