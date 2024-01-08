@@ -32,8 +32,9 @@ def get_data():
     games = pl.scan_parquet('Data/games.parquet')
     tracking = pl.scan_parquet('Data/tracking_week_*.parquet')
     play_results = pl.scan_parquet('Data/results.parquet')
+    team_info = pl.read_csv('Data/teams_colors_logos.csv')
 
-    return players, plays, games, tracking, play_results
+    return players, plays, games, tracking, play_results, team_info
 
 def get_active_filters() -> filter:
     return filter(lambda _: _.is_enabled, st.session_state.filters)
@@ -83,33 +84,34 @@ team_colors = {
     'football':["#CBB67C","#663831"]
 }
 
-#TODO fix to include other selections
-def hex_color_from_color_selection(selection, team):
-    print("hex_color_from_color_selection()")
+def get_item_from_team_info_df(selection, team, _df_team_info):
+    return _df_team_info.filter(pl.col('team_abbr')==pl.lit(team)).select(selection).item()
 
+# @st.cache_data
+def hex_color_from_color_selection(selection, team, _df_team_info):
     if len(team) == 1:
         team=team[0]
     if selection == 'Team Color 1':
         try:
-            return team_colors[team][1] 
-        except:
+            return get_item_from_team_info_df('team_color', team, _df_team_info) 
+        except Exception as e: 
+            st.write(e)
             return '#013369'
     elif selection == 'Team Color 2':
         try:
-            return team_colors[team][2]
+            return get_item_from_team_info_df('team_color2', team, _df_team_info) 
         except:
             return '#D50A0A'
     elif selection == 'Team Color 3':
         try:
-            return team_colors[team][3]
+            return get_item_from_team_info_df('team_color3', team, _df_team_info) 
         except:
             return '#000000'
     elif selection == 'Team Color 4':
         try:
-            return team_colors[team][4]
+            return get_item_from_team_info_df('team_color4', team, _df_team_info) 
         except:
             return '#A5ACAF'
-
     return selection
 
 
@@ -137,10 +139,6 @@ def collect_df(_df, selected_columns, *args):
 
 def add_filter_name_to_df(df, name):
     return df.select([pl.lit(name).alias(('FilterName')), pl.all()])
-
-def get_item_from_team_info_df(selection, team, _df_team_info):
-    print("get_item_from_team_info_df()")
-    return _df_team_info.filter(pl.col('team_nick')==pl.lit(team)).select(selection).collect().item()
 
 # @st.cache_data
 # def get_logos(team, _df_team_info):
@@ -274,7 +272,7 @@ def get_max(_df,column):
 if __name__ == "__main__":
     
     # Read in data
-    players, plays, games, tracking, play_results = get_data()
+    players, plays, games, tracking, play_results, team_info = get_data()
 
     #TODO put these filters in a function on another page or something
     passing_concepts=['Arches', 'Bow', 'Dragon', 'Drive', 'Leak', 'Mesh', 'Sail', 'Scissors', 'Shallow Cross', 'Shock', 'Smash', 'Snag', 'Stick', 'Tosser', 'Y Cross']
@@ -596,8 +594,7 @@ if __name__ == "__main__":
 
             df = add_filter_name_to_df(play_results, name)
             #TODO allow ability to select defensive team's colors
-            color = hex_color_from_color_selection(color, team)
-
+            color = hex_color_from_color_selection(color, team, team_info)
 
             df = filter_df(df, masks.values())
 
@@ -621,8 +618,6 @@ if __name__ == "__main__":
             dfs.append(df.select(selected_columns).collect().to_pandas())
             names.append(name)
             colors.append(color)
-
-            st.write(color)
 
             print("Creating Stats")
             #TODO let them select which
@@ -1028,7 +1023,25 @@ if __name__ == "__main__":
             
             return (x_values, y_values, x1_values, y1_values)
 
-        # change this to join eventually
+        for i in range(1, MyFilter.group_count+1): #todo have a function for this?
+            print('Getting filter values')
+
+            name = coalesce(filter_selections[i]['name'], 'NFL')
+            color = filter_selections[i]['color']
+            values = filter_selections[i]['values']
+            masks = filter_selections[i]['masks']
+            shared_offense=filter_selections.get(0,{}).get('values',{}).get('Offense','')
+            shared_defense=filter_selections.get(0,{}).get('values',{}).get('Defense','')
+            offense = values.get('Offense', '')
+            defense = values.get('Defense', '')
+            team = coalesce(shared_offense,shared_defense,offense,defense,'NA')
+            print("Finished getting filter values")
+
+
+        st.write(offense)
+        st.write(defense)
+
+        plays = plays.filter(pl.col('possessionTeam')==offense[0]).filter(pl.col('defensiveTeam')==defense[0])
         tracking = tracking.filter(pl.col('gameId')==2022091107).filter(pl.col('playId')==1841)
 
         st.plotly_chart(animate_play(games.collect().to_pandas(), tracking.collect().to_pandas(), plays.collect().to_pandas(), players.collect().to_pandas(), 2022091107, 1841))
