@@ -559,7 +559,7 @@ if __name__ == "__main__":
 
     #TODO this is main; reorganize all this crap
     # st.title('Pull the Plug')
-    st.image('/Users/bendavis/Documents/GitHub/BDB/assets/littleLogo.png')
+    st.image('https://raw.githubusercontent.com/BenDavis71/BDB/main/assets/littleLogo.png?token=GHSAT0AAAAAACMPMACTNZJQ2LT3WYUZUH4IZM3LFFA')
     options = ['Ridgeline', 'Play Animation', 'About']
     selected_page = option_menu(None, options, orientation='horizontal', styles={'icon': {'font-size': '0px'}})
     if selected_page == 'Ridgeline':
