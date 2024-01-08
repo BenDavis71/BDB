@@ -984,11 +984,6 @@ if __name__ == "__main__":
             x2 = player_x + (DIST) * math.cos(math.radians(player_orientation-ANGLE))
             y2 = player_y + (DIST) * math.sin(math.radians(player_orientation-ANGLE))
 
-            x1_with_multiplier = player_x + (DIST*DIST_MULTIPLIER) * math.cos(math.radians(player_orientation+ANGLE))
-            y1_with_multiplier = player_y + (DIST*DIST_MULTIPLIER) * math.sin(math.radians(player_orientation+ANGLE))
-            x2_with_multiplier = player_x + (DIST*DIST_MULTIPLIER) * math.cos(math.radians(player_orientation+ANGLE))
-            y2_with_multiplier = player_y + (DIST*DIST_MULTIPLIER) * math.sin(math.radians(player_orientation+ANGLE))
-
             x1 = player_x + (DIST*DIST_MULTIPLIER) * math.cos(math.radians(player_orientation+ANGLE))
             y1 = player_y + (DIST*DIST_MULTIPLIER) * math.sin(math.radians(player_orientation+ANGLE))
 
@@ -1021,32 +1016,54 @@ if __name__ == "__main__":
             # print(y3_values)
             
             return (x_values, y_values, x1_values, y1_values)
+    
+        print('Getting filter values')
+        name = coalesce(filter_selections[1]['name'], 'NFL')
+        color = filter_selections[1]['color']
+        values = filter_selections[1]['values']
+        masks = filter_selections[1]['masks']
+        shared_offense=filter_selections.get(0,{}).get('values',{}).get('Offense','')
+        shared_defense=filter_selections.get(0,{}).get('values',{}).get('Defense','')
+        offense = values.get('Offense', '')
+        defense = values.get('Defense', '')
+        team = coalesce(shared_offense,shared_defense,offense,defense,'NA')
+        print("Finished getting filter values")
 
-        for i in range(1): #todo have a function for this?
-            print('Getting filter values')
-            name = coalesce(filter_selections[i]['name'], 'NFL')
-            color = filter_selections[i]['color']
-            values = filter_selections[i]['values']
-            masks = filter_selections[i]['masks']
-            shared_offense=filter_selections.get(0,{}).get('values',{}).get('Offense','')
-            shared_defense=filter_selections.get(0,{}).get('values',{}).get('Defense','')
-            offense = values.get('Offense', '')
-            defense = values.get('Defense', '')
-            team = coalesce(shared_offense,shared_defense,offense,defense,'NA')
-            print("Finished getting filter values")
+        df = add_filter_name_to_df(play_results, name)
+        #TODO allow ability to select defensive team's colors
+        color = hex_color_from_color_selection(color, team, team_info)
 
-            df = add_filter_name_to_df(play_results, name)
-            #TODO allow ability to select defensive team's colors
-            color = hex_color_from_color_selection(color, team, team_info)
+        df = filter_df(df, masks.values())
 
-            df = filter_df(df, masks.values())
-            st.write(df.schema)
+        # Rename possessionTeam and DefensiveTeam to offense and defense
+        plays = plays.with_columns([
+            pl.col('possessionTeam').alias('offense'),
+            pl.col('defensiveTeam').alias('defense'),
+        ])
 
-        tracking = tracking.filter(pl.col('gameId')==2022091107).filter(pl.col('playId')==1841)
+        plays = plays.filter(pl.col('possessionTeam')==offense[0]).filter(pl.col('defensiveTeam')==defense[0])
+        tracking = tracking.join(plays.select(['gameId', 'playId']), on=['gameId', 'playId'])
+        
+        tracking = tracking.select(['nflId', 'gameId', 'playId', 'frameId', 'club', 'playDirection', 'jerseyNumber', 'x', 'y']).collect()
+        unique_plays = tracking.select('gameId', 'playId').unique()
 
-        st.write(defenseType)
+        play_filter = st.multiselect(
+            '',
+            list(range(tracking.select('gameId', 'playId').unique().shape[0])),
+        )
 
-        st.plotly_chart(animate_play(games.collect().to_pandas(), tracking.collect().to_pandas(), plays.collect().to_pandas(), players.collect().to_pandas(), 2022091107, 1841))
+        selected_play = unique_plays[play_filter]
+
+        st.plotly_chart(
+            animate_play(
+                games.collect().to_pandas(), 
+                tracking.to_pandas(), 
+                plays.collect().to_pandas(), 
+                players.collect().to_pandas(), 
+                selected_play['gameId'][0], 
+                selected_play['playId'][0]
+            )
+        )
         
 
     elif selected_page == 'About':
