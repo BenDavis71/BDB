@@ -24,20 +24,75 @@ import matplotlib.animation as animation
 from matplotlib import rc
 rc('animation', html='html5')
 
-@st.cache_data(persist=True, show_spinner=False)
-def get_data():
-    # read all data
-    players = pl.scan_parquet('Data/players.parquet')
-    plays = pl.scan_parquet('Data/plays.parquet')
-    games = pl.scan_parquet('Data/games.parquet')
-    tracking = pl.scan_parquet('Data/tracking_week_*.parquet')
-    play_results = pl.scan_parquet('Data/results.parquet')
-    team_info = pl.read_csv('Data/teams_colors_logos.csv')
+def clean_play_results(play_results, tracking):
+    #quick and dirty change from 1/0 to bool, to fix classification mistake,
+    #and make an existing column understandable to users
+    return play_results.with_columns(
+            pl.when(pl.col('wildcat')==1).then(True).otherwise(False).alias('wildcat'),
 
-    play_results = play_results.with_columns(
-        pl.when(pl.col('wildcat')==1).then(True).otherwise(False).alias('wildcat')
-        )
-    return players, plays, games, tracking, play_results, team_info
+            pl.when(
+                    pl.col('ballCarrierPosition').str.contains('y') &
+                        (pl.col('play') == 'GY Counter')
+                ).then('Long Trap')
+                .otherwise(pl.col('play'))
+                .alias('play'),
+            pl.when(
+                pl.col('ballCarrierPosition').str.contains('y') &
+                    (pl.col('play') == 'Long Trap')
+                 ).then('Long Trap')
+                  .otherwise(pl.col('playFamily')).
+                  alias('playFamily'),
+
+            pl.when(pl.col('ballCarrierPosition')=='q').then('QB')
+            .when(pl.col('ballCarrierPosition')=='mhb').then('Backfield Motion')
+            .when(pl.col('ballCarrierPosition')=='lhb').then('HB - Offset L')
+            .when(pl.col('ballCarrierPosition')=='rhb').then('HB - Offset R')
+            .when(pl.col('ballCarrierPosition')=='hb').then('HB')
+            .when(pl.col('ballCarrierPosition')=='wr').then('WR')
+            .when(pl.col('ballCarrierPosition')=='lf').then('FB - Offset L')
+            .when(pl.col('ballCarrierPosition')=='rf').then('FB - Offset R')
+            .when(pl.col('ballCarrierPosition')=='f').then('FB')
+            .when(pl.col('ballCarrierPosition').str.contains('y')).then('TE')
+            .alias('ballCarrierPresnapAlignment'),
+
+            pl.when(
+               (pl.col('ballCarrierPosition')=='rhb') & (pl.col('playside')=='R')
+            ).then(True)
+            .when(
+               (pl.col('ballCarrierPosition')=='lhb') & (pl.col('playside')=='L')
+            ).then(True)
+            .otherwise(False)
+            .alias('sameSideOrBashGive')
+          )
+
+
+# @st.cache_data(persist=False, show_spinner=False)
+def get_data():
+
+    #quick and dirty way to flip on and off different paths for different envs
+    streamlit_server_hosting = False
+    path_prefix = ''
+    if streamlit_server_hosting == True:
+        path_prefix = 'https://github.com/BenDavis71/BDB/raw/main/'
+        players = pl.read_parquet(path_prefix + 'Data/players.parquet')
+        plays = pl.read_parquet(path_prefix + 'Data/plays.parquet')
+        games = pl.read_parquet(path_prefix + 'Data/games.parquet')
+        tracking = pl.scan_parquet('Data/tracking_week_*.parquet')
+        play_results = pl.read_parquet(path_prefix + 'Data/results.parquet')
+
+    else:
+    # read all data
+        players = pl.scan_parquet(path_prefix + 'Data/players.parquet')
+        plays = pl.scan_parquet(path_prefix + 'Data/plays.parquet')
+        games = pl.scan_parquet(path_prefix + 'Data/games.parquet')
+        tracking = pl.scan_parquet('Data/tracking_week_*.parquet')
+        play_results = pl.scan_parquet(path_prefix + 'Data/results.parquet')
+
+    team_info = pl.read_csv(path_prefix + 'Data/teams_colors_logos.csv')
+
+    play_results = clean_play_results(play_results, tracking)
+
+    return players, plays, games, tracking, play_results, team_info, streamlit_server_hosting
 
 def get_active_filters() -> filter:
     return filter(lambda _: _.is_enabled, st.session_state.filters)
@@ -119,7 +174,7 @@ def hex_color_from_color_selection(selection, team, _df_team_info):
 
 #TODO throw into helper lib
 def coalesce(*args):
-    print("coalesce()")
+    # print("coalesce()")
     val = args[0]
     for arg in args:
         if val:
@@ -128,7 +183,7 @@ def coalesce(*args):
     return val
 
 def filter_df(df, masks):
-    print("filter_df()")
+    # print("filter_df()")
     for mask in masks:
         df=df.filter(mask)
     df = df.unique(subset='uniquePlayId') #TODO move this elsewhere?
@@ -161,10 +216,10 @@ def add_filter_name_to_df(df, name):
 
 def draw_sidebar():
     """Should include dynamically generated filters"""
-    print("in draw_sidebar")
+    # print("in draw_sidebar")
 
     with st.sidebar:
-        print("in st.sidebar")
+        # print("in st.sidebar")
 
         st.markdown("""
         <style>
@@ -177,10 +232,10 @@ def draw_sidebar():
         selected_filters = st.multiselect(
             '',
             list(get_human_filter_names(st.session_state.filters)),
-            ['Offense'],
+            [ 'Play','Backfield Formation', 'Front', 'Box, Spill, or Dent'],
         )
 
-        print("All selected filters", selected_filters)
+        # print("All selected filters", selected_filters)
 
         #TODO universal filter
         #TODO load preset filters
@@ -188,15 +243,15 @@ def draw_sidebar():
         
         MyFilter.group_count = st.number_input("Groups", 1, 20)
 
-        print("Enabling filters")
+        # print("Enabling filters")
         for table_filter in st.session_state.filters:
             if table_filter.human_name in selected_filters:
-                print(table_filter.human_name, ": enabled")
+                # print(table_filter.human_name, ": enabled")
                 table_filter.enable()
-        print("Finished enabling filters")
+        # print("Finished enabling filters")
 
         if is_any_filter_enabled():
-            print("Filters are enabled")
+            # print("Filters are enabled")
             color_options=['Team Color 1', 'Team Color 2', 'Team Color 3', 'Team Color 4', 'Custom', 'Red', 'Orange', 'Yellow', 'Green', 'Blue','Indigo','Violet']
             filter_selections={}
 
@@ -257,7 +312,7 @@ def draw_sidebar():
         return filter_selections
 
 
-@st.cache_data
+# @st.cache_data
 def get_options(_df,column):
     return sorted(_df.select(column).drop_nulls().unique().collect().get_columns()[0].to_list())
 
@@ -272,23 +327,41 @@ def get_max(_df,column):
 
 
 if __name__ == "__main__":
-    
+
+    st.set_page_config(
+        page_title='Pull The Plug  🔌',
+    )
+    st.markdown("""
+        <style>
+            [data-testid="stDecoration"] {
+                background-image: linear-gradient(90deg, rgb(0, 102, 204), rgb(102, 255, 255));
+            }
+        </style>""",
+        unsafe_allow_html=True)
+
     # Read in data
-    players, plays, games, tracking, play_results, team_info = get_data()
+    players, plays, games, tracking, play_results, team_info, streamlit_server_hosting = get_data()
+
+    if streamlit_server_hosting:
+        players = players.lazy()
+        plays = plays.lazy()
+        games = games.lazy()
+        tracking = tracking.lazy()
+        play_results = play_results.lazy()
 
     #TODO put these filters in a function on another page or something
-    passing_concepts=['Arches', 'Bow', 'Dragon', 'Drive', 'Leak', 'Mesh', 'Sail', 'Scissors', 'Shallow Cross', 'Shock', 'Smash', 'Snag', 'Stick', 'Tosser', 'Y Cross']
-    down_dict={1:'1st',2:'2nd',3:'3rd',4:'4th'}
-    quarter_dict={1:'1st Q',2:'2nd Q',3:'3rd Q',4:'4th Q',5:'OT'}
-    format_time_remaining=lambda s: f'{s//60}:{s%60:02}'
-    def calculate_field_position(yards_to_goalline):
-        if yards_to_goalline<50:
-            return f'Opp {yards_to_goalline}'
-        elif yards_to_goalline>50:
-            return f'Own {100-yards_to_goalline}'
-        return '50'
+    # passing_concepts=['Arches', 'Bow', 'Dragon', 'Drive', 'Leak', 'Mesh', 'Sail', 'Scissors', 'Shallow Cross', 'Shock', 'Smash', 'Snag', 'Stick', 'Tosser', 'Y Cross']
+    # down_dict={1:'1st',2:'2nd',3:'3rd',4:'4th'}
+    # quarter_dict={1:'1st Q',2:'2nd Q',3:'3rd Q',4:'4th Q',5:'OT'}
+    # format_time_remaining=lambda s: f'{s//60}:{s%60:02}'
+    # def calculate_field_position(yards_to_goalline):
+    #     if yards_to_goalline<50:
+    #         return f'Opp {yards_to_goalline}'
+    #     elif yards_to_goalline>50:
+    #         return f'Own {100-yards_to_goalline}'
+    #     return '50'
 
-    print("Loading filters")
+    # print("Loading filters")
     st.session_state.filters = (
         MyFilter(
             human_name='Offense',
@@ -487,15 +560,8 @@ if __name__ == "__main__":
             widget_options={'options':get_options(play_results,'play')}
         ),
         MyFilter(
-            human_name='Box, Spill, or Dent',
-            df_column='defenseType',
-            widget_type=st.multiselect,
-            widget_options={'options':['Box','Spill','Dent']}
-        ),
-        MyFilter(
             human_name='Offensive Personnel',
             df_column='personnel',
-            suffix='p',
             widget_type=st.multiselect,
             widget_options={'options':get_options(play_results,'personnel')}
         ),
@@ -537,6 +603,24 @@ if __name__ == "__main__":
             widget_options={'options':get_options(play_results,'leftReceiverFormation')}
         ),
         MyFilter(
+            human_name='Ball Carrier',
+            df_column='ballCarrierDisplayName',
+            widget_type=st.multiselect,
+            widget_options={'options':get_options(play_results,'ballCarrierDisplayName')}
+        ),
+        MyFilter(
+            human_name="Ball Carrier's Presnap Alignment",
+            df_column='ballCarrierPresnapAlignment',
+            suffix = ' Ball Carrier',
+            widget_type=st.multiselect,
+            widget_options={'options':get_options(play_results,'ballCarrierPresnapAlignment')}
+        ),
+        MyFilter(
+            human_name="Same Side (or Bash Give)",
+            df_column='sameSideOrBashGive',
+            widget_type=st.checkbox,
+        ),
+        MyFilter(
             human_name='Playside',
             df_column='playside',
             prefix='Playside ',
@@ -558,14 +642,9 @@ if __name__ == "__main__":
             widget_options={'min_value':2,'max_value':5,'value':[2,5]}
         ),
         MyFilter(
-            human_name='Ball Carrier',
-            df_column='ballCarrierDisplayName',
-            widget_type=st.multiselect,
-            widget_options={'options':get_options(play_results,'ballCarrierDisplayName')}
-        ),
-        MyFilter(
             human_name='Defensive Personnel',
             df_column='defensivePersonnel',
+            suffix = ' D',
             widget_type=st.multiselect,
             widget_options={'options':get_options(play_results,'defensivePersonnel')}
         ),
@@ -574,7 +653,7 @@ if __name__ == "__main__":
             df_column='defensivePersonnelGroup',
             suffix = ' D',
             widget_type=st.multiselect,
-            widget_options={'options':get_options(play_results,'defensivePersonnelGroup')}
+            widget_options={'options':['Heavy','Base','Nickel','Dime','Quarter']}
         ),
         MyFilter(
             human_name='Front Family',
@@ -603,13 +682,19 @@ if __name__ == "__main__":
             widget_type=st.multiselect,
             widget_options={'options':['Heavy','Light']}
         ),
+        MyFilter(
+            human_name='Box, Spill, or Dent',
+            df_column='defenseType',
+            widget_type=st.multiselect,
+            widget_options={'options':['Box','Spill','Dent']}
+        ),
     )
 
     # st.write(play_results.schema)
     # st.write(get_options(play_results,'defenseType'))
     # st.write(play_results.schema)
 
-    print("Loading filters done")
+    # print("Loading filters done")
 
     play_results=play_results.with_columns([
         pl.when(pl.col('expectedPointsAdded')>pl.lit(0)).then(1).otherwise(0).alias('SuccessfulPlay'),
@@ -618,13 +703,13 @@ if __name__ == "__main__":
 
     ]) 
 
-    print("SuccessPlay/ExplosivePlay/StuffedPlay done")
+    # print("SuccessPlay/ExplosivePlay/StuffedPlay done")
     
     # st.write(plays.collect().to_pandas())
     # try:
-    print("Trying to draw sidebar")
+    # print("Trying to draw sidebar")
     filter_selections = draw_sidebar()
-    print("Finished drawing sidebar")
+    # print("Finished drawing sidebar")
     # st.write(df.collect().filter(True).to_pandas())
     # st.write(*filter_selections.items())
     # st.write(filter_selections[1]['masks']['Personnel'])
@@ -649,32 +734,501 @@ if __name__ == "__main__":
     #TODO this is main; reorganize all this crap
     # st.title('Pull the Plug')
     st.image('https://github.com/BenDavis71/BDB/blob/4ac975ebc7f7f6b55e043ce5559ee348a1a00729/assets/littleLogo.png?raw=True')
-    options = ['Ridgeline', 'Play Animation', 'About']
+    options = ['Analysis', 'Cut-Ups']
     selected_page = option_menu(None, options, orientation='horizontal', styles={'icon': {'font-size': '0px'}})
-    if selected_page == 'Ridgeline':
-        print("Selected Page: ", selected_page)
-
-        st.header('EPA Ridgeline Plot and Stats')
-        st.header('')
     
-        for i in range(1, MyFilter.group_count+1): #todo have a function for this?
-            print('Getting filter values')
+    try:
+                
+        if selected_page == 'Analysis':
+            # print("Selected Page: ", selected_page)
 
-            name = coalesce(filter_selections[i]['name'], 'NFL')
-            color = filter_selections[i]['color']
-            values = filter_selections[i]['values']
-            masks = filter_selections[i]['masks']
-            shared_offense=filter_selections.get(0,{}).get('values',{}).get('Offense','')
-            shared_defense=filter_selections.get(0,{}).get('values',{}).get('Defense','')
+            st.header('EPA Ridgeline Plot and Stats')
+            st.header('')
+        
+            for i in range(1, MyFilter.group_count+1): #todo have a function for this?
+                # print('Getting filter values')
+
+                name = coalesce(filter_selections[i]['name'], 'NFL')
+                color = filter_selections[i]['color']
+                values = filter_selections[i]['values']
+                masks = filter_selections[i]['masks']
+                shared_offense=filter_selections.get(0,{}).get('values',{}).get('Offense','')
+                shared_defense=filter_selections.get(0,{}).get('values',{}).get('Defense','')
+                offense = values.get('Offense', '')
+                defense = values.get('Defense', '')
+                team = coalesce(shared_offense,shared_defense,offense,defense,'NA')
+                # print("Finished getting filter values")
+
+
+                df = add_filter_name_to_df(play_results, name)
+                #TODO allow ability to select defensive team's colors
+                color = hex_color_from_color_selection(color, team, team_info)
+
+                df = filter_df(df, masks.values())
+
+
+                # start ridgeline function here?
+                metric = 'expectedPointsAdded' #TODO bring out of loop? and is the below stupid?
+                
+                # print("joining play_results to plays to get EPA")
+                # df = df.join(plays, on=['gameId','playId'], how='left')
+                # print("finished joining play_results to plays to get EPA")  
+
+                # df.schema
+                df = df.with_columns([pl.col(metric).alias('Metric')])
+                selected_columns=['FilterName', 'Metric'] 
+                # df = collect_df(df, selected_columns, values)
+                # df = df.select(selected_columns).collect().to_pandas()
+                
+
+                #TODO exclude don't work
+                #TODO defense don't work
+                dfs.append(df.select(selected_columns).collect().to_pandas())
+                names.append(name)
+                colors.append(color)
+
+                # print("Creating Stats")
+                #TODO let them select which
+                stats_df=df.select([
+                    pl.lit(name).alias('Name'),
+                    pl.count('playResult').alias('Plays'),
+                    # pl.sum('OffensiveYardage').alias('Yards'),
+                    pl.mean('playResult').round(1).alias('Yards/Play'),
+                    pl.mean('expectedPointsAdded').round(2).alias('EPA/Play'),
+                    pl.mean('SuccessfulPlay').round(2).alias('Success Rate'),
+                    pl.mean('ExplosivePlay').round(2).alias('Explosive Rate'),
+                    pl.mean('StuffedPlay').round(2).alias('Stuff Rate')
+                ])
+                
+                # print("Selecting Columns: ", selected_columns)
+                #TODO mess around with dataframe formatting available https://docs.streamlit.io/library/api-reference/data/st.dataframe
+                selected_columns=['Name','Plays','Yards/Play','EPA/Play','Success Rate','Explosive Rate','Stuff Rate']
+                stats_dfs.append(collect_df(stats_df, selected_columns, values, names))
+                
+            #TODO leave message if dfs = 0?
+            # print("Attempting to draw ridge plot")
+            draw_ridgeplot(dfs, names, colors, MyFilter.group_count)
+            stats_dfs = pd.concat(stats_dfs).set_index('Name')
+            st.dataframe(stats_dfs,use_container_width=True)
+
+
+        elif selected_page == 'Cut-Ups':
+            # print("Selected Page: ", selected_page)
+
+            # normalize orientation 'o' and direction 'dir'
+            # convert 'NA' to 0
+            replacement_values = {'NA': '0'}
+            tracking = tracking.with_columns(
+                pl.col('o').apply(lambda x: replacement_values.get(x, x)),
+            )
+
+            tracking=tracking.with_columns([
+                pl.when(pl.col('playDirection')=='right').then(pl.col('o').cast(pl.Float64)).otherwise((180+pl.col('o').cast(pl.Float64))%360).alias('firstAdjustedO'),
+            ])
+
+            tracking=tracking.with_columns([
+                pl.when(pl.col('firstAdjustedO') <= 180).then(180-pl.col('firstAdjustedO')).otherwise(540-pl.col('firstAdjustedO')).alias('adjustedO')
+            ])
+
+            tracking=tracking.with_columns([
+                pl.when(pl.col('playDirection')=='right').then(53.3-pl.col('y')).otherwise(pl.col('y')).alias('x'),
+                pl.when(pl.col('playDirection')=='right').then(pl.col('x')).otherwise(120-pl.col('x')).alias('y')
+            ])
+
+            players = players.with_columns([pl.col('nflId').cast(pl.Utf8)])
+
+            def hex_to_rgb_array(hex_color):
+                '''take in hex val and return rgb np array'''
+                return np.array(tuple(int(hex_color.lstrip('#')[i:i+2], 16) for i in (0, 2, 4))) 
+
+            def ColorDistance(hex1,hex2):
+                '''d = {} distance between two colors(3)'''
+                if hex1 == hex2:
+                    return 0
+                rgb1 = hex_to_rgb_array(hex1)
+                rgb2 = hex_to_rgb_array(hex2)
+                rm = 0.5*(rgb1[0]+rgb2[0])
+                d = abs(sum((2+rm,4,3-rm)*(rgb1-rgb2)**2))**0.5
+                return d
+
+            def ColorPairs(team1,team2):
+                color_array_1 = team_colors[team1]
+                color_array_2 = team_colors[team2]
+
+                # If color distance is small enough then flip color order
+                if ColorDistance(color_array_1[0],color_array_2[0])<500:
+                    return {team1:[color_array_1[0],color_array_1[1]],team2:[color_array_2[1],color_array_2[0]],'football':team_colors['football']}
+                else:
+                    return {team1:[color_array_1[0],color_array_1[1]],team2:[color_array_2[0],color_array_2[1]],'football':team_colors['football']}
+
+            def animate_play(tracking_df,play_df,players,gameId,playId, breakdown, highlighted_players = []):
+                selected_play_df = play_df[(play_df.playId==playId)&(play_df.gameId==gameId)].copy()
+                
+                tracking_players_df = tracking_df.join(players,how='left',on='nflId').to_pandas()#pd.merge(tracking_df,players,how="left",on = "nflId")
+                selected_tracking_df = tracking_players_df[(tracking_players_df.playId==playId)&(tracking_players_df.gameId==gameId)].copy()
+
+                sorted_frame_list = selected_tracking_df.frameId.unique()
+                sorted_frame_list.sort()
+                
+                # get good color combos
+                team_combos = list(set(selected_tracking_df.club.unique())-set(["football"]))
+                
+                color_orders = ColorPairs(team_combos[0], team_combos[1])
+                
+                # get play General information 
+                line_of_scrimmage = np.where(selected_tracking_df.playDirection.values[0] == "right", selected_play_df.absoluteYardlineNumber.values[0], 120 - selected_play_df.absoluteYardlineNumber.values[0])
+                
+                ## Fixing first down marker issue from last year
+                # if selected_tracking_df.playDirection.values[0] == "right":
+                #     first_down_marker = line_of_scrimmage - selected_play_df.yardsToGo.values[0]
+                # else:
+                # #     first_down_marker = line_of_scrimmage + selected_play_df.yardsToGo.values[0]
+                # down = selected_play_df.down.values[0]
+                # quarter = selected_play_df.quarter.values[0]
+                # gameClock = selected_play_df.gameClock.values[0]
+                # playDescription = selected_play_df.playDescription.values[0]
+                # Handle case where we have a really long Play Description and want to split it into two lines
+                # if len(playDescription.split(" "))>15 and len(playDescription)>115:
+                #     playDescription = " ".join(playDescription.split(" ")[0:16]) + "<br>" + " ".join(playDescription.split(" ")[16:])
+
+                # initialize plotly start and stop buttons for animation
+                updatemenus_dict = [
+                    {
+                        "buttons": [
+                            {
+                                "args": [None, {"frame": {"duration": 100, "redraw": False},
+                                            "fromcurrent": True, "transition": {"duration": 250,
+                                                                        "easing": "quadratic-in-out"}}],
+                                "label": "Play",
+                                "method": "animate"
+                            },
+                            {
+                                "args": [[None], {"frame": {"duration": 0, "redraw": False},
+                                                "mode": "immediate",
+                                                "transition": {"duration": 0}}],
+                                "label": "Pause",
+                                "method": "animate"
+                            }
+                        ],
+                        "direction": "up",
+                        "pad": {"r": 0, "t": 10},
+                        "showactive": False,
+                        "type": "buttons",
+                        "x": 1.15,
+                        "xanchor": "right",
+                        "y": .4675,
+                        "yanchor": "bottom"
+                    }
+                ]
+                # initialize plotly slider to show frame position in animation
+                sliders_dict = {
+                    "active": 0,
+                    "yanchor": "top",
+                    "xanchor": "left",
+                    "currentvalue": {
+                        "font": {"size": 20},
+                        "prefix": "Frame:",
+                        "visible": True,
+                        "xanchor": "right"
+                    },
+                    "transition": {"duration": 10, "easing": "cubic-in-out"},
+                    "pad": {"b": 0, "t": 0},
+                    "len": 1,
+                    "x": 0,
+                    "y": 0,
+                    "steps": []
+                }
+
+
+                frames = []
+                for frameId in sorted_frame_list:
+                    data = []
+                    # Add Numbers to Field 
+                    data.append(
+                        go.Scatter(
+                            y=np.arange(20,110,10), 
+                            x=[5]*len(np.arange(20,110,10)),
+                            mode='text',
+                            text=list(map(str,list(np.arange(20, 61, 10)-10)+list(np.arange(40, 9, -10)))),
+                            textfont_size = 30,
+                            textfont_family = "Courier New, monospace",
+                            textfont_color = "#ffffff",
+                            showlegend=False,
+                            hoverinfo='none'
+                        )
+                    )
+                    data.append(
+                        go.Scatter(
+                            y=np.arange(20,110,10), 
+                            x=[53.5-5]*len(np.arange(20,110,10)),
+                            mode='text',
+                            text=list(map(str,list(np.arange(20, 61, 10)-10)+list(np.arange(40, 9, -10)))),
+                            textfont_size = 30,
+                            textfont_family = "Courier New, monospace",
+                            textfont_color = "#ffffff",
+                            showlegend=False,
+                            hoverinfo='none'
+                        )
+                    )
+                    # Add line of scrimmage 
+                    data.append(
+                        go.Scatter(
+                            y=[line_of_scrimmage,line_of_scrimmage], 
+                            x=[0,53.5],
+                            line_dash='dash',
+                            line_color='blue',
+                            showlegend=False,
+                            hoverinfo='none'
+                        )
+                    )
+
+                    # for y in range(20,110,10):
+                    #     data.append(
+                    #         go.Scatter(
+                    #             y=[y,y], 
+                    #             x=[0,53.5],
+                    #             line_color='white',
+                    #             showlegend=False,
+                    #             hoverinfo='none'
+                    #         )
+                    #     )
+
+                    # # Add First down line 
+                    # data.append(
+                    #     go.Scatter(
+                    #         y=[first_down_marker,first_down_marker], 
+                    #         x=[0,53.5],
+                    #         line_dash='dash',
+                    #         line_color='yellow',
+                    #         showlegend=False,
+                    #         hoverinfo='none'
+                    #     )
+                    # )
+                    # Add Endzone Colors 
+                    endzoneColors = {0:color_orders[selected_play_df.possessionTeam.values[0]][0],
+                                    110:color_orders[selected_play_df.defensiveTeam.values[0]][0]}
+                    for x_min in [0,110]:
+                        data.append(
+                            go.Scatter(
+                                y=[x_min,x_min,x_min+10,x_min+10,x_min],
+                                x=[0,53.5,53.5,0,0],
+                                fill="toself",
+                                fillcolor=endzoneColors[x_min],
+                                mode="lines",
+                                line=dict(
+                                    color="white",
+                                    width=3
+                                    ),
+                                opacity=1,
+                                showlegend= False,
+                                hoverinfo ="skip"
+                            )
+                        )
+                    # Plot Players
+                    # Note: references to "x" and "y" are using "adjustedX" and "adjustedY"
+                    for team in selected_tracking_df.club.unique():
+                        plot_df = selected_tracking_df[(selected_tracking_df.club==team)&(selected_tracking_df.frameId==frameId)].copy()
+                        if team != "football":
+                            hover_text_array=[]
+                            for nflId in plot_df.nflId:
+                                selected_player_df = plot_df[plot_df.nflId==nflId]
+
+                                # if selected_player_df.jerseyNumber.values[0] in highlighted_players:
+                                #     vision_cone = get_vision_cone_coordinates(selected_player_df)
+                                #     data.append(go.Scatter(
+                                #         x=vision_cone[0], y=vision_cone[1], mode='lines', line_shape='spline', fill='toself',  # Fill the area inside the polygon
+                                #         fillcolor='rgba(255,255,153,0.6)', line=dict(color='rgba(255,255,153,0)', width=2), showlegend=False)
+                                #     )
+                                #     data.append(go.Scatter(
+                                #         x=vision_cone[2], y=vision_cone[3], mode='lines', line_shape='spline', fill='toself',  # Fill the area inside the polygon
+                                #         fillcolor='rgba(255,255,153,0.6)', line=dict(color='rgba(255,255,153,0)', width=2), showlegend=False)
+                                #     )
+                                hover_text_array.append("{} #{}".format(selected_player_df["displayName"].values[0],
+                                                                                                selected_player_df["jerseyNumber"].values[0]))
+                            #legend
+                            data.append(go.Scatter(x=plot_df["x"], y=plot_df["y"],mode = 'markers',marker=go.scatter.Marker(
+                                                                                                        color=color_orders[team][0],
+                                                                                                        line=go.scatter.marker.Line(width=2,
+                                                                                                                        color=color_orders[team][1]),
+                                                                                                                        size=10),
+                                                    name=team,hovertext=hover_text_array,hoverinfo="text"))
+                        else:
+                            data.append(go.Scatter(x=plot_df["x"], y=plot_df["y"],mode = 'markers',marker=go.scatter.Marker(
+                                                                                                        color=color_orders[team][0],
+                                                                                                        line=go.scatter.marker.Line(width=2,
+                                                                                                                        color=color_orders[team][1]),
+                                                                                                        size=10),
+                                                    name=team,hoverinfo='none'))
+                    # add frame to slider
+                    slider_step = {"args": [
+                        [frameId],
+                        {"frame": {"duration": 100, "redraw": False},
+                        "mode": "immediate",
+                        "transition": {"duration": 0}}
+                    ],
+                        "label": str(frameId),
+                        "method": "animate"}
+                    sliders_dict["steps"].append(slider_step)
+                    frames.append(go.Frame(data=data, name=str(frameId)))
+
+                scale=10
+                layout = go.Layout(
+                    autosize=False,
+                    height=120*scale,
+                    width=60*scale,
+                    yaxis=dict(range=[0, 120], autorange=False, tickmode='array',tickvals=np.arange(10, 111, 5).tolist(),showticklabels=False),
+                    xaxis=dict(range=[0, 53.3], autorange=False,showgrid=False,showticklabels=False),
+
+                    plot_bgcolor='#00B140',
+                    updatemenus=updatemenus_dict,
+                    showlegend=False,
+                    dragmode=False,
+                    sliders = [sliders_dict]
+                )
+
+                fig = go.Figure(
+                    data=frames[0]["data"],
+                    layout= layout,
+                    frames=frames[1:]
+                )
+                # # Create First Down Markers 
+                # for y_val in [0,53]:
+                #     fig.add_annotation(
+                #             y=first_down_marker,
+                #             x=y_val,
+                #             text=str(down),
+                #             showarrow=False,
+                #             font=dict(
+                #                 family="Courier New, monospace",
+                #                 size=16,
+                #                 color="black"
+                #                 ),
+                #             align="center",
+                #             bordercolor="black",
+                #             borderwidth=2,
+                #             borderpad=4,
+                #             bgcolor="#ff7f0e",
+                #             opacity=1
+                #             )
+                
+                # Add Team Abbreviations in EndZone's
+                for y_min in [0,110]:
+                    if y_min == 0:
+                        teamName=selected_play_df.possessionTeam.values[0]
+                    else:
+                        teamName=selected_play_df.defensiveTeam.values[0]
+                        
+                    fig.add_annotation(
+                        y=y_min+5,
+                        x=53.5/2,
+                        text=teamName,
+                        showarrow=False,
+                        font=dict(
+                            family="Courier New, monospace",
+                            size=32,
+                            color="White"
+                            ),
+                        textangle = 0
+                    )
+
+                # add play breakdown
+                fig.add_annotation(
+                    y=line_of_scrimmage - 15,
+                    x=53.5/2,
+                    # yref='paper',
+                    text=breakdown,
+                    showarrow=False,
+                    font=dict(
+                        family="Courier New, monospace",
+                        size=12,
+                        color="white"
+                        ),
+                    textangle = 0
+                )
+
+                fig.update_layout(margin=dict(t=20,b=50))
+                    
+                buffer = 15
+                fb = selected_tracking_df[selected_tracking_df['club']=='football']
+                origin_fb_loc = fb.iloc[0]
+
+                # Can use this to zoom in but the vision cones look off
+                # max_diff = 0
+                # if (abs(fb['x'].max()-origin_fb_loc['x']) > abs(fb['x'].min()-origin_fb_loc['x'])):
+                #     max_diff = abs(fb['x'].max()-origin_fb_loc['x'])
+                # else:
+                #     max_diff = abs(fb['x'].min()-origin_fb_loc['x'])
+
+                # fig.update_layout(updatemenus=[dict(x=2, y=2)])
+                return fig
+
+            def get_vision_cone_coordinates(player):
+                import math
+                DIST = 3
+                DIST_MULTIPLIER = .95
+                ANGLE = 22.5
+
+                player_x = player['x'].iloc[0]
+                player_y = player['y'].iloc[0]
+                player_orientation = float(player['adjustedO'].iloc[0])
+
+                # bad design but it's ok for now
+                x_values = []
+                y_values = []
+                
+                x1_values = []
+                y1_values = []
+                
+                x1 = player_x + (DIST) * math.cos(math.radians(player_orientation+ANGLE))
+                y1 = player_y + (DIST) * math.sin(math.radians(player_orientation+ANGLE))
+
+                x2 = player_x + (DIST) * math.cos(math.radians(player_orientation-ANGLE))
+                y2 = player_y + (DIST) * math.sin(math.radians(player_orientation-ANGLE))
+
+                x1 = player_x + (DIST*DIST_MULTIPLIER) * math.cos(math.radians(player_orientation+ANGLE))
+                y1 = player_y + (DIST*DIST_MULTIPLIER) * math.sin(math.radians(player_orientation+ANGLE))
+
+                x3 = player_x + (DIST) * math.cos(math.radians(player_orientation))
+                y3 = player_y + (DIST) * math.sin(math.radians(player_orientation))
+
+                # print("hyp1: ", high_on_potenuse, " player_orientation: ", player_orientation)
+                # print("player_x ", player_x, " player_y ", player_y)
+                # print("x1: ", x1, " y1: ", y1)
+                # print("x2: ", x2, " y2: ", y2)
+
+                x_values.append(x1)
+                y_values.append(y1)
+
+                x_values.append(x3)
+                y_values.append(y3)
+                
+                x_values.append(x2)
+                y_values.append(y2)
+
+                x1_values.append(x1)
+                y1_values.append(y1)
+                x1_values.append(player_x)
+                y1_values.append(player_y)
+                x1_values.append(x2)
+                y1_values.append(y2)
+
+                # print("player: ", player_x, ", ", player_y)
+                # print(x3_values)
+                # print(y3_values)
+                
+                return (x_values, y_values, x1_values, y1_values)
+        
+            # print('Getting filter values')
+            name = coalesce(filter_selections[1]['name'], 'NFL')
+            values = filter_selections[1]['values']
+            masks = filter_selections[1]['masks']
+            color = filter_selections[1]['color']
             offense = values.get('Offense', '')
             defense = values.get('Defense', '')
-            team = coalesce(shared_offense,shared_defense,offense,defense,'NA')
-            print("Finished getting filter values")
-
+            # print("Finished getting filter values")
 
             df = add_filter_name_to_df(play_results, name)
             #TODO allow ability to select defensive team's colors
-            color = hex_color_from_color_selection(color, team, team_info)
 
             df = filter_df(df, masks.values())
 
@@ -688,485 +1242,114 @@ if __name__ == "__main__":
 
             # df.schema
             df = df.with_columns([pl.col(metric).alias('Metric')])
-            selected_columns=['FilterName', 'Metric'] 
-            # df = collect_df(df, selected_columns, values)
-            # df = df.select(selected_columns).collect().to_pandas()
-            
 
-            #TODO exclude don't work
-            #TODO defense don't work
-            dfs.append(df.select(selected_columns).collect().to_pandas())
-            names.append(name)
-            colors.append(color)
-
-            print("Creating Stats")
-            #TODO let them select which
-            stats_df=df.select([
-                pl.lit(name).alias('Name'),
-                pl.count('playResult').alias('Plays'),
-                # pl.sum('OffensiveYardage').alias('Yards'),
-                pl.mean('playResult').round(1).alias('Yards/Play'),
-                pl.mean('expectedPointsAdded').round(2).alias('EPA/Play'),
-                pl.mean('SuccessfulPlay').round(2).alias('Success Rate'),
-                pl.mean('ExplosivePlay').round(2).alias('Explosive Rate'),
-                pl.mean('StuffedPlay').round(2).alias('Stuff Rate')
-            ])
-            
-            print("Selecting Columns: ", selected_columns)
-            #TODO mess around with dataframe formatting available https://docs.streamlit.io/library/api-reference/data/st.dataframe
-            selected_columns=['Name','Plays','Yards/Play','EPA/Play','Success Rate','Explosive Rate','Stuff Rate']
-            stats_dfs.append(collect_df(stats_df, selected_columns, values, names))
-            
-        #TODO leave message if dfs = 0?
-        print("Attempting to draw ridge plot")
-        draw_ridgeplot(dfs, names, colors, MyFilter.group_count)
-        stats_dfs = pd.concat(stats_dfs).set_index('Name')
-        st.dataframe(stats_dfs,use_container_width=True)
-
-
-    elif selected_page == 'Play Animation':
-        print("Selected Page: ", selected_page)
-
-        # normalize orientation 'o' and direction 'dir'
-        # convert 'NA' to 0
-        replacement_values = {'NA': '0'}
-        tracking = tracking.with_columns(
-            pl.col('o').apply(lambda x: replacement_values.get(x, x)),
-        )
-
-        tracking=tracking.with_columns([
-            pl.when(pl.col('playDirection')=='right').then(pl.col('o').cast(pl.Float64)).otherwise((180+pl.col('o').cast(pl.Float64))%360).alias('firstAdjustedO'),
-        ])
-
-        tracking=tracking.with_columns([
-            pl.when(pl.col('firstAdjustedO') <= 180).then(180-pl.col('firstAdjustedO')).otherwise(540-pl.col('firstAdjustedO')).alias('adjustedO')
-        ])
-
-        tracking=tracking.with_columns([
-            pl.when(pl.col('playDirection')=='right').then(53.3-pl.col('y')).otherwise(pl.col('y')).alias('x'),
-            pl.when(pl.col('playDirection')=='right').then(pl.col('x')).otherwise(120-pl.col('x')).alias('y')
-        ])
-
-        players = players.with_columns([pl.col('nflId').cast(pl.Utf8)])
-
-        def hex_to_rgb_array(hex_color):
-            '''take in hex val and return rgb np array'''
-            return np.array(tuple(int(hex_color.lstrip('#')[i:i+2], 16) for i in (0, 2, 4))) 
-
-        def ColorDistance(hex1,hex2):
-            '''d = {} distance between two colors(3)'''
-            if hex1 == hex2:
-                return 0
-            rgb1 = hex_to_rgb_array(hex1)
-            rgb2 = hex_to_rgb_array(hex2)
-            rm = 0.5*(rgb1[0]+rgb2[0])
-            d = abs(sum((2+rm,4,3-rm)*(rgb1-rgb2)**2))**0.5
-            return d
-
-        def ColorPairs(team1,team2):
-            color_array_1 = team_colors[team1]
-            color_array_2 = team_colors[team2]
-
-            # If color distance is small enough then flip color order
-            if ColorDistance(color_array_1[0],color_array_2[0])<500:
-                return {team1:[color_array_1[0],color_array_1[1]],team2:[color_array_2[1],color_array_2[0]],'football':team_colors['football']}
+            if name == 'NFL':
+                st.header('Select a filter')
             else:
-                return {team1:[color_array_1[0],color_array_1[1]],team2:[color_array_2[0],color_array_2[1]],'football':team_colors['football']}
-
-        def animate_play(games,tracking_df,play_df,players,gameId,playId, highlighted_players = []):
-            selected_game_df = games[games.gameId==gameId].copy()
-            selected_play_df = play_df[(play_df.playId==playId)&(play_df.gameId==gameId)].copy()
-            
-            tracking_players_df = pd.merge(tracking_df,players,how="left",on = "nflId")
-            selected_tracking_df = tracking_players_df[(tracking_players_df.playId==playId)&(tracking_players_df.gameId==gameId)].copy()
-
-            sorted_frame_list = selected_tracking_df.frameId.unique()
-            sorted_frame_list.sort()
-            
-            # get good color combos
-            team_combos = list(set(selected_tracking_df.club.unique())-set(["football"]))
-            
-            color_orders = ColorPairs(team_combos[0], team_combos[1])
-            
-            # get play General information 
-            line_of_scrimmage = np.where(selected_tracking_df.playDirection.values[0] == "right", selected_play_df.absoluteYardlineNumber.values[0], 120 - selected_play_df.absoluteYardlineNumber.values[0])
-            
-            ## Fixing first down marker issue from last year
-            if selected_tracking_df.playDirection.values[0] == "right":
-                first_down_marker = line_of_scrimmage - selected_play_df.yardsToGo.values[0]
-            else:
-                first_down_marker = line_of_scrimmage + selected_play_df.yardsToGo.values[0]
-            down = selected_play_df.down.values[0]
-            quarter = selected_play_df.quarter.values[0]
-            gameClock = selected_play_df.gameClock.values[0]
-            playDescription = selected_play_df.playDescription.values[0]
-            # Handle case where we have a really long Play Description and want to split it into two lines
-            if len(playDescription.split(" "))>15 and len(playDescription)>115:
-                playDescription = " ".join(playDescription.split(" ")[0:16]) + "<br>" + " ".join(playDescription.split(" ")[16:])
-
-            # initialize plotly start and stop buttons for animation
-            updatemenus_dict = [
-                {
-                    "buttons": [
-                        {
-                            "args": [None, {"frame": {"duration": 100, "redraw": False},
-                                        "fromcurrent": True, "transition": {"duration": 0}}],
-                            "label": "Play",
-                            "method": "animate"
-                        },
-                        {
-                            "args": [[None], {"frame": {"duration": 0, "redraw": False},
-                                            "mode": "immediate",
-                                            "transition": {"duration": 0}}],
-                            "label": "Pause",
-                            "method": "animate"
-                        }
-                    ],
-                    "direction": "left",
-                    "pad": {"r": 10, "t": 87},
-                    "showactive": False,
-                    "type": "buttons",
-                    "x": 0.1,
-                    "xanchor": "right",
-                    "y": 0,
-                    "yanchor": "top"
-                }
-            ]
-            # initialize plotly slider to show frame position in animation
-            sliders_dict = {
-                "active": 0,
-                "yanchor": "top",
-                "xanchor": "left",
-                "currentvalue": {
-                    "font": {"size": 20},
-                    "prefix": "Frame:",
-                    "visible": True,
-                    "xanchor": "right"
-                },
-                "transition": {"duration": 10, "easing": "cubic-in-out"},
-                "pad": {"b": 10, "t": 50},
-                "len": 0.9,
-                "x": 0.1,
-                "y": 0,
-                "steps": []
-            }
-
-
-            frames = []
-            for frameId in sorted_frame_list:
-                data = []
-                # Add Numbers to Field 
-                data.append(
-                    go.Scatter(
-                        y=np.arange(20,110,10), 
-                        x=[5]*len(np.arange(20,110,10)),
-                        mode='text',
-                        text=list(map(str,list(np.arange(20, 61, 10)-10)+list(np.arange(40, 9, -10)))),
-                        textfont_size = 30,
-                        textfont_family = "Courier New, monospace",
-                        textfont_color = "#ffffff",
-                        showlegend=False,
-                        hoverinfo='none'
-                    )
-                )
-                data.append(
-                    go.Scatter(
-                        y=np.arange(20,110,10), 
-                        x=[53.5-5]*len(np.arange(20,110,10)),
-                        mode='text',
-                        text=list(map(str,list(np.arange(20, 61, 10)-10)+list(np.arange(40, 9, -10)))),
-                        textfont_size = 30,
-                        textfont_family = "Courier New, monospace",
-                        textfont_color = "#ffffff",
-                        showlegend=False,
-                        hoverinfo='none'
-                    )
-                )
-                # Add line of scrimage 
-                data.append(
-                    go.Scatter(
-                        y=[line_of_scrimmage,line_of_scrimmage], 
-                        x=[0,53.5],
-                        line_dash='dash',
-                        line_color='blue',
-                        showlegend=False,
-                        hoverinfo='none'
-                    )
-                )
-                # # Add First down line 
-                # data.append(
-                #     go.Scatter(
-                #         y=[first_down_marker,first_down_marker], 
-                #         x=[0,53.5],
-                #         line_dash='dash',
-                #         line_color='yellow',
-                #         showlegend=False,
-                #         hoverinfo='none'
-                #     )
-                # )
-                # Add Endzone Colors 
-                endzoneColors = {0:color_orders[selected_game_df.homeTeamAbbr.values[0]][0],
-                                110:color_orders[selected_game_df.visitorTeamAbbr.values[0]][0]}
-                for x_min in [0,110]:
-                    data.append(
-                        go.Scatter(
-                            y=[x_min,x_min,x_min+10,x_min+10,x_min],
-                            x=[0,53.5,53.5,0,0],
-                            fill="toself",
-                            fillcolor=endzoneColors[x_min],
-                            mode="lines",
-                            line=dict(
-                                color="white",
-                                width=3
-                                ),
-                            opacity=1,
-                            showlegend= False,
-                            hoverinfo ="skip"
-                        )
-                    )
-                # Plot Players
-                # Note: references to "x" and "y" are using "adjustedX" and "adjustedY"
-                for team in selected_tracking_df.club.unique():
-                    plot_df = selected_tracking_df[(selected_tracking_df.club==team)&(selected_tracking_df.frameId==frameId)].copy()
-                    if team != "football":
-                        hover_text_array=[]
-                        for nflId in plot_df.nflId:
-                            selected_player_df = plot_df[plot_df.nflId==nflId]
-
-                            if selected_player_df.jerseyNumber.values[0] in highlighted_players:
-                                vision_cone = get_vision_cone_coordinates(selected_player_df)
-                                data.append(go.Scatter(
-                                    x=vision_cone[0], y=vision_cone[1], mode='lines', line_shape='spline', fill='toself',  # Fill the area inside the polygon
-                                    fillcolor='rgba(255,255,153,0.6)', line=dict(color='rgba(255,255,153,0)', width=2), showlegend=False)
-                                )
-                                data.append(go.Scatter(
-                                    x=vision_cone[2], y=vision_cone[3], mode='lines', line_shape='spline', fill='toself',  # Fill the area inside the polygon
-                                    fillcolor='rgba(255,255,153,0.6)', line=dict(color='rgba(255,255,153,0)', width=2), showlegend=False)
-                                )
-                            hover_text_array.append("nflId:{}<br>displayName:{}<br>".format(selected_player_df["nflId"].values[0],
-                                                                                            selected_player_df["displayName"].values[0]))
-                        data.append(go.Scatter(x=plot_df["x"], y=plot_df["y"],mode = 'markers',marker=go.scatter.Marker(
-                                                                                                    color=color_orders[team][0],
-                                                                                                    line=go.scatter.marker.Line(width=2,
-                                                                                                                    color=color_orders[team][1]),
-                                                                                                    size=10),
-                                                name=team,hovertext=hover_text_array,hoverinfo="text"))
-                    else:
-                        data.append(go.Scatter(x=plot_df["x"], y=plot_df["y"],mode = 'markers',marker=go.scatter.Marker(
-                                                                                                    color=color_orders[team][0],
-                                                                                                    line=go.scatter.marker.Line(width=2,
-                                                                                                                    color=color_orders[team][1]),
-                                                                                                    size=10),
-                                                name=team,hoverinfo='none'))
-                # add frame to slider
-                slider_step = {"args": [
-                    [frameId],
-                    {"frame": {"duration": 100, "redraw": False},
-                    "mode": "immediate",
-                    "transition": {"duration": 0}}
-                ],
-                    "label": str(frameId),
-                    "method": "animate"}
-                sliders_dict["steps"].append(slider_step)
-                frames.append(go.Frame(data=data, name=str(frameId)))
-
-            scale=8
-            layout = go.Layout(
-                autosize=False,
-                height=120*scale,
-                width=60*scale,
-                yaxis=dict(range=[0, 120], autorange=False, tickmode='array',tickvals=np.arange(10, 111, 5).tolist(),showticklabels=False),
-                xaxis=dict(range=[0, 53.3], autorange=False,showgrid=False,showticklabels=False),
-
-                plot_bgcolor='#00B140',
-                updatemenus=updatemenus_dict,
-                sliders = [sliders_dict]
-            )
-
-            fig = go.Figure(
-                data=frames[0]["data"],
-                layout= layout,
-                frames=frames[1:]
-            )
-            # # Create First Down Markers 
-            # for y_val in [0,53]:
-            #     fig.add_annotation(
-            #             y=first_down_marker,
-            #             x=y_val,
-            #             text=str(down),
-            #             showarrow=False,
-            #             font=dict(
-            #                 family="Courier New, monospace",
-            #                 size=16,
-            #                 color="black"
-            #                 ),
-            #             align="center",
-            #             bordercolor="black",
-            #             borderwidth=2,
-            #             borderpad=4,
-            #             bgcolor="#ff7f0e",
-            #             opacity=1
-            #             )
-            
-            # Add Team Abbreviations in EndZone's
-            for y_min in [0,110]:
-                if y_min == 0:
-                    teamName=selected_game_df.homeTeamAbbr.values[0]
-                else:
-                    teamName=selected_game_df.visitorTeamAbbr.values[0]
-                    
-                fig.add_annotation(
-                    y=y_min+5,
-                    x=53.5/2,
-                    text=teamName,
-                    showarrow=False,
-                    font=dict(
-                        family="Courier New, monospace",
-                        size=32,
-                        color="White"
-                        ),
-                    textangle = 0
-                )
+                # Rename possessionTeam and DefensiveTeam to offense and defense
+                plays = plays.with_columns([
+                    pl.col('possessionTeam').alias('offense'),
+                    pl.col('defensiveTeam').alias('defense'),
+                ])
                 
-            buffer = 15
-            fb = selected_tracking_df[selected_tracking_df['club']=='football']
-            origin_fb_loc = fb.iloc[0]
+                st.header(name + ' Cut-Ups')
+                st.header('')
 
-            # Can use this to zoom in but the vision cones look off
-            max_diff = 0
-            if (abs(fb['x'].max()-origin_fb_loc['x']) > abs(fb['x'].min()-origin_fb_loc['x'])):
-                max_diff = abs(fb['x'].max()-origin_fb_loc['x'])
-            else:
-                max_diff = abs(fb['x'].min()-origin_fb_loc['x'])
+                games = games.join(df.select(['gameId']),on='gameId')
+                tracking = tracking.join(df.select(['gameId', 'playId']), on=['gameId', 'playId'])
+                
+                tracking = tracking.select(['nflId', 'gameId', 'playId', 'frameId', 'club', 'playDirection', 'jerseyNumber', 'x', 'y']).collect()
+                plays = plays.join(df,on=['gameId','playId'])
+                        
+                quarterMap = {
+                    1:'1st',
+                    2:'2nd',
+                    3:'3rd',
+                    4:'4th',
+                    5:'OT',
+                    }
 
-            # fig.update_layout(updatemenus=[dict(x=2, y=2)])
-            return fig
-
-        def get_vision_cone_coordinates(player):
-            import math
-            DIST = 3
-            DIST_MULTIPLIER = .95
-            ANGLE = 22.5
-
-            player_x = player['x'].iloc[0]
-            player_y = player['y'].iloc[0]
-            player_orientation = float(player['adjustedO'].iloc[0])
-
-            # bad design but it's ok for now
-            x_values = []
-            y_values = []
-            
-            x1_values = []
-            y1_values = []
-            
-            x1 = player_x + (DIST) * math.cos(math.radians(player_orientation+ANGLE))
-            y1 = player_y + (DIST) * math.sin(math.radians(player_orientation+ANGLE))
-
-            x2 = player_x + (DIST) * math.cos(math.radians(player_orientation-ANGLE))
-            y2 = player_y + (DIST) * math.sin(math.radians(player_orientation-ANGLE))
-
-            x1 = player_x + (DIST*DIST_MULTIPLIER) * math.cos(math.radians(player_orientation+ANGLE))
-            y1 = player_y + (DIST*DIST_MULTIPLIER) * math.sin(math.radians(player_orientation+ANGLE))
-
-            x3 = player_x + (DIST) * math.cos(math.radians(player_orientation))
-            y3 = player_y + (DIST) * math.sin(math.radians(player_orientation))
-
-            # print("hyp1: ", high_on_potenuse, " player_orientation: ", player_orientation)
-            # print("player_x ", player_x, " player_y ", player_y)
-            # print("x1: ", x1, " y1: ", y1)
-            # print("x2: ", x2, " y2: ", y2)
-
-            x_values.append(x1)
-            y_values.append(y1)
-
-            x_values.append(x3)
-            y_values.append(y3)
-            
-            x_values.append(x2)
-            y_values.append(y2)
-
-            x1_values.append(x1)
-            y1_values.append(y1)
-            x1_values.append(player_x)
-            y1_values.append(player_y)
-            x1_values.append(x2)
-            y1_values.append(y2)
-
-            # print("player: ", player_x, ", ", player_y)
-            # print(x3_values)
-            # print(y3_values)
-            
-            return (x_values, y_values, x1_values, y1_values)
-    
-        print('Getting filter values')
-        name = coalesce(filter_selections[1]['name'], 'NFL')
-        values = filter_selections[1]['values']
-        masks = filter_selections[1]['masks']
-        offense = values.get('Offense', '')
-        defense = values.get('Defense', '')
-        print("Finished getting filter values")
-
-        df = add_filter_name_to_df(play_results, name)
-        #TODO allow ability to select defensive team's colors
-
-        df = filter_df(df, masks.values())
-
-
-        # start ridgeline function here?
-        metric = 'expectedPointsAdded' #TODO bring out of loop? and is the below stupid?
-        
-        # print("joining play_results to plays to get EPA")
-        # df = df.join(plays, on=['gameId','playId'], how='left')
-        # print("finished joining play_results to plays to get EPA")  
-
-        # df.schema
-        df = df.with_columns([pl.col(metric).alias('Metric')])
-
-        if False:
-            st.write('Please filter on an Offense and Defense team')
-        else:
-            # Rename possessionTeam and DefensiveTeam to offense and defense
-            plays = plays.with_columns([
-                pl.col('possessionTeam').alias('offense'),
-                pl.col('defensiveTeam').alias('defense'),
-            ])
-            st.title(name)
-
-            plays = plays.join(df.select(['offense', 'defense']), on=['offense', 'defense'])
-            tracking = tracking.join(df.select(['gameId', 'playId']), on=['gameId', 'playId'])
-            
-            tracking = tracking.select(['nflId', 'gameId', 'playId', 'frameId', 'club', 'playDirection', 'jerseyNumber', 'x', 'y']).collect()
-            unique_plays = tracking.select('gameId', 'playId').unique()
-
-            st.write('Choose a play to view')
-            play_filter = st.selectbox(
-                '',
-                list(range(1,unique_plays.shape[0]+1)),
-            )
-
-            if play_filter != 0: 
-                st.write('Viewing play ', play_filter, " of ", unique_plays.shape[0])
-                selected_play = unique_plays[play_filter-1]
-
-                st.plotly_chart(
-                    animate_play(
-                        games.collect().to_pandas(), 
-                        tracking.to_pandas(), 
-                        plays.collect().to_pandas(), 
-                        players.collect().to_pandas(), 
-                        selected_play['gameId'][0], 
-                        selected_play['playId'][0]
+                plays = plays.with_columns(
+                    (
+                        pl.col('offense') + pl.lit(' vs ') + pl.col('defense') + pl.lit(' - Week ') + 
+                        pl.col('week').cast(str) + pl.lit(' - ') + pl.col('gameClock') + pl.lit(' remaining in ') +
+                        pl.col('quarter').map_dict(quarterMap)
                     )
+                    .alias('description')
+                    ).sort(by=['gameId','playId']).with_row_count(offset=1)
+                    
+                st.write('Choose a play to view')
+                play_filter = st.selectbox(
+                    '',
+                    plays.select('description').collect().to_pandas()['description'].to_list(),
                 )
-            else:
-                st.title('No play selected')
-            
 
-    elif selected_page == 'About':
-        print("Selected Page: ", selected_page)
-        st.markdown('')
-        st.markdown('')
-        st.markdown('_Coming soon_')
+                # play_filter = plays.filter(pl.col('description')==play_filter).select('row_nr').collect().item(0,0)
 
-    # except Exception as e: print(e)
+                total_filtered_plays = plays.select(pl.count()).collect().item()
+                if total_filtered_plays != 0: 
+                    selected_play = plays.filter(pl.col('description')==play_filter).collect()
+                    
+                    st.write('Viewing play ', selected_play.select('row_nr').item(), " of ", total_filtered_plays)
+
+
+                    def get_selected_value(selected_play, selected_col):
+                        return selected_play.select(
+                                    pl.col(selected_col)
+                                ).item()
+
+                    personnel = get_selected_value(selected_play, 'personnel')
+                    wildcatDict = {1:'Wildcat ', 0:''}
+                    wildcat = wildcatDict[get_selected_value(selected_play, 'wildcat')]
+                    qbAlignment = get_selected_value(selected_play, 'qbAlignment')
+                    backfieldFormation = get_selected_value(selected_play, 'backfieldFormation')
+                    receiverDistribution = get_selected_value(selected_play, 'receiverDistribution')
+                    rightReceiverFormation = get_selected_value(selected_play, 'rightReceiverFormation')
+                    leftReceiverFormation = get_selected_value(selected_play, 'leftReceiverFormation')
+
+                    backfieldFormation = wildcat + backfieldFormation + ' ' + qbAlignment
+                    receiverFormation = receiverDistribution + ' - ' + rightReceiverFormation + ' Right, ' + leftReceiverFormation + ' Left'
+                    offense = backfieldFormation + ', ' + personnel + 'p <br>' + receiverFormation
+
+                    defensivePersonnel = get_selected_value(selected_play, 'defensivePersonnel')
+                    defensivePersonnelGroup = get_selected_value(selected_play, 'defensivePersonnelGroup')
+                    front = get_selected_value(selected_play, 'front')
+                    defense = defensivePersonnel + ' ' + defensivePersonnelGroup + ' D' + ', ' + front + ' Front'
+
+                    play = get_selected_value(selected_play, 'play') or ''
+                    defenseType = get_selected_value(selected_play, 'defenseType') or ''
+                    if defenseType:
+                        defenseType = ' - ' + defenseType
+
+                    playResult = get_selected_value(selected_play, 'playResult')
+                    if playResult < 0:
+                        playResultEnd = 'Loss'
+                    else:
+                        playResultEnd = 'Gain'
+                    playResult = str(playResult) + ' Yard ' + playResultEnd
+                    breakdown =  play+defenseType+'<br>'+offense+'<br>'+defense+'<br>'+playResult
+
+
+                    st.plotly_chart(
+                        animate_play(
+                            tracking, 
+                            plays.collect().to_pandas(), 
+                            players.collect(), 
+                            selected_play['gameId'].item(), 
+                            selected_play['playId'].item(),
+                            breakdown
+                        ), theme=None, config = {'displayModeBar': False}
+                    )
+                else:
+                    st.title('No play selected')
+                
+
+        elif selected_page == 'About':
+            # print("Selected Page: ", selected_page)
+            st.markdown('')
+            st.markdown('')
+            st.markdown('_Coming soon_')
+
+    except:
+        st.header('Enable a filter or refresh the page')
         

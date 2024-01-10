@@ -156,7 +156,7 @@ class MyFilter:
 
             elif self.widget_type is st.multiselect:
                 self.widget_masks[i]=pl.col(f'{self.df_column}').is_in(self.widget_values[i])
-                if 'Personnel' in self.human_name:
+                if 'Offensive Personnel' in self.human_name:
                     self.widget_values[i] = [f'{x}p' for x in self.widget_values[i]]
                 generated_name_component = self.prefix + ', '.join(self.widget_values[i]) + self.suffix
                 if is_excluded:
