@@ -1164,9 +1164,10 @@ if __name__ == "__main__":
 
     elif selected_page == 'About':
         print("Selected Page: ", selected_page)
-        st.markdown('')
-        st.markdown('')
-        st.markdown('_Coming soon_')
+        with st.container(horizontal_alignment='center'):
+            st.text("This is the app for Ben Davis and Nidiyan Rajendran's 2024 Big Data Bowl submission:")
+            st.link_button('Kaggle Report', 'https://www.kaggle.com/code/bendavis71/pull-the-plug', type='primary')
+            st.link_button('Twitter Thread', 'https://x.com/BigPlaidChad/status/1747296090104201279', type='primary')
 
     # except Exception as e: print(e)
         
