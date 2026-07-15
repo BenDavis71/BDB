@@ -16,8 +16,6 @@ from streamlit_option_menu import option_menu
 
 from lib.filterwidget import MyFilter
 from lib.ridgeplot import draw_ridgeplot
-from lib.heatmap import draw_heatmap
-from lib.personnel_sankey import draw_personnel_sankey
 
 # for mpl animation
 import matplotlib.animation as animation
