@@ -2,6 +2,5 @@
 *.csv
 nfl-big-data-bowl-2024/*
 nfl-big-data-bowl-2024.zip
-assets/.DS_Store
-streamlit/.DS_Store
+*/.DS_Store
 .DS_Store
