@@ -1132,34 +1132,60 @@ if __name__ == "__main__":
             ])
             st.title(name)
 
-            plays = plays.join(df.select(['offense', 'defense']), on=['offense', 'defense'])
-            tracking = tracking.join(df.select(['gameId', 'playId']), on=['gameId', 'playId'])
-            
-            tracking = tracking.select(['nflId', 'gameId', 'playId', 'frameId', 'club', 'playDirection', 'jerseyNumber', 'x', 'y']).collect()
-            unique_plays = tracking.select('gameId', 'playId').unique()
-
-            st.write('Choose a play to view')
-            play_filter = st.selectbox(
-                '',
-                list(range(1,unique_plays.shape[0]+1)),
+            tracking = (
+                tracking
+                .join(
+                    df
+                    .select('gameId', 'playId'),
+                    on=['gameId', 'playId']
+                )
+                .select(['nflId', 'gameId', 'playId', 'frameId', 'club', 'playDirection', 'jerseyNumber', 'x', 'y'])
+            )
+            unique_plays = (
+                plays
+                .select('gameId','playId','offense','defense','playDescription','quarter')
+                .unique(subset=['gameId','playId'])
+                .join(
+                    tracking
+                    .select('gameId','playId')
+                    .unique(),
+                    on=['gameId','playId'],
+                    # how='semi'
+                )
+                .join(
+                    games
+                    .select('gameId','week'),
+                    on=['gameId']
+                )
+                .sort(by=['gameId','offense','playId'])
+                .with_row_count(name='index', offset=1)
+                .select(pl.struct(pl.all()).alias('playStruct'))
+                .collect()
             )
 
-            if play_filter != 0: 
-                st.write('Viewing play ', play_filter, " of ", unique_plays.shape[0])
-                selected_play = unique_plays[play_filter-1]
+            plays = plays.join(df.select(['offense', 'defense']), on=['offense', 'defense'])
+            tracking=tracking.collect()
 
-                st.plotly_chart(
-                    animate_play(
-                        games.collect().to_pandas(), 
-                        tracking.to_pandas(), 
-                        plays.collect().to_pandas(), 
-                        players.collect().to_pandas(), 
-                        selected_play['gameId'][0], 
-                        selected_play['playId'][0]
-                    )
+            st.write('Choose a play to view')
+            selected_play = st.selectbox(
+                'play_filter',
+                label_visibility='collapsed',
+                options=unique_plays,
+                format_func=lambda play: 
+                f"REG {play['week']} {play['offense']} O vs {play['defense']} D Q{play['quarter']} {play['playDescription']}"
+            )
+
+            st.write('Viewing play ', selected_play['index'], " of ", unique_plays.shape[0])
+            st.plotly_chart(
+                animate_play(
+                    games.collect().to_pandas(), 
+                    tracking.to_pandas(), 
+                    plays.collect().to_pandas(), 
+                    players.collect().to_pandas(), 
+                    selected_play['gameId'], 
+                    selected_play['playId']
                 )
-            else:
-                st.title('No play selected')
+            )
             
 
     elif selected_page == 'About':
