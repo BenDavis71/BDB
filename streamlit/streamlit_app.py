@@ -1166,27 +1166,30 @@ if __name__ == "__main__":
             plays = plays.join(df.select(['offense', 'defense']), on=['offense', 'defense'])
             tracking=tracking.collect()
 
-            st.write('Choose a play to view')
-            selected_play = st.selectbox(
-                'play_filter',
-                label_visibility='collapsed',
-                options=unique_plays,
-                format_func=lambda play: 
-                f"REG {play['week']} {play['offense']} O vs {play['defense']} D Q{play['quarter']} {play['playDescription']}"
-            )
-
-            st.write('Viewing play ', selected_play['index'], " of ", unique_plays.shape[0])
-            st.plotly_chart(
-                animate_play(
-                    games.collect().to_pandas(), 
-                    tracking.to_pandas(), 
-                    plays.collect().to_pandas(), 
-                    players.collect().to_pandas(), 
-                    selected_play['gameId'], 
-                    selected_play['playId']
+            if unique_plays.is_empty():
+                st.write('No plays found')
+            else:
+                st.write('Select a play')
+                selected_play = st.selectbox(
+                    'play_filter',
+                    label_visibility='collapsed',
+                    options=unique_plays,
+                    format_func=lambda play: 
+                    f"REG {play['week']} {play['offense']} O vs {play['defense']} D Q{play['quarter']} {play['playDescription']}"
                 )
-            )
-            
+
+                st.write('Viewing play ', selected_play['index'], " of ", unique_plays.shape[0])
+                st.plotly_chart(
+                    animate_play(
+                        games.collect().to_pandas(), 
+                        tracking.to_pandas(), 
+                        plays.collect().to_pandas(), 
+                        players.collect().to_pandas(), 
+                        selected_play['gameId'], 
+                        selected_play['playId']
+                    )
+                )
+                
 
     elif selected_page == 'About':
         print("Selected Page: ", selected_page)
