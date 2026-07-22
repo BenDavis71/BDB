@@ -1,0 +1,6 @@
+[server]
+port = 8601
+baseUrlPath = "pull-the-plug"
+
+[theme]
+base = "light"
